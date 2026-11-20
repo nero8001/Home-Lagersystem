@@ -1,6 +1,9 @@
 # Lagerprogramm für Zuhause
 
-Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.0**.
+Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.1**.
+
+## v0.2.1
+- TypeScript-Fix für optionale Supabase-Client-Initialisierung im Datenlade-/Realtime-Effekt
 
 ## v0.2.0
 - Supabase Auth: Registrierung, Anmeldung, Abmeldung und Passwort-Reset

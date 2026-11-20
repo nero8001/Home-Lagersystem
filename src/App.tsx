@@ -56,11 +56,12 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   // Load the selected household's cloud data and listen for changes from other devices.
   useEffect(() => {
     let active = true;
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
     const loadHouseholdData = async () => {
       const [categoryResult, itemResult] = await Promise.all([
-        supabase.from("categories").select("id,name,parent_id").eq("household_id", householdId).order("name"),
-        supabase.from("inventory_items").select("id,name,description,category_id,quantity,unit,min_quantity,location,barcode,notes,updated_at").eq("household_id", householdId).order("updated_at", { ascending: false }),
+        client.from("categories").select("id,name,parent_id").eq("household_id", householdId).order("name"),
+        client.from("inventory_items").select("id,name,description,category_id,quantity,unit,min_quantity,location,barcode,notes,updated_at").eq("household_id", householdId).order("updated_at", { ascending: false }),
       ]);
       if (!active) return;
       if (categoryResult.error || itemResult.error) {
@@ -77,11 +78,11 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
       })));
     };
     void loadHouseholdData();
-    const channel = supabase.channel(`household-${householdId}-inventory`)
+    const channel = client.channel(`household-${householdId}-inventory`)
       .on("postgres_changes", { event: "*", schema: "public", table: "categories", filter: `household_id=eq.${householdId}` }, () => { void loadHouseholdData(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "inventory_items", filter: `household_id=eq.${householdId}` }, () => { void loadHouseholdData(); })
       .subscribe();
-    return () => { active = false; void supabase.removeChannel(channel); };
+    return () => { active = false; void client.removeChannel(channel); };
   }, [householdId, language]);
 
   async function persistItem(item: InventoryItem) {
