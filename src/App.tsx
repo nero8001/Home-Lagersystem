@@ -114,7 +114,14 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
       min_quantity: item.minQuantity, location: item.location || null, barcode: item.barcode || null,
       notes: item.notes || null, updated_at: new Date().toISOString(),
     });
-    if (error) { console.error(error); window.alert(language === "de" ? "Artikel konnte nicht synchronisiert werden: " + error.message : "Could not sync item: " + error.message); }
+    if (error) { console.error(error); window.alert(language === "de" ? "Artikel konnte nicht synchronisiert werden: " + error.message : "Could not sync item: " + error.message); return; }
+    if (item.barcode.trim()) {
+      const { error: catalogError } = await supabase.from("household_products").upsert({
+        household_id: householdId, barcode: item.barcode.trim(), name: item.name,
+        description: item.description || null, brand: null, image_url: null, updated_at: new Date().toISOString(),
+      }, { onConflict: "household_id,barcode" });
+      if (catalogError) console.error("Household product catalog sync error", catalogError);
+    }
   }
 
   async function persistCategory(category: Category) {
@@ -155,9 +162,18 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
     setProductLoading(true); setProductError(""); setProductHits([]);
     try {
+      const localQuery = supabase.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
+      const localResult = /^[0-9]{8,14}$/.test(query)
+        ? await localQuery.eq("barcode", query)
+        : await localQuery.ilike("name", `%${query.replace(/[%_]/g, "\\$&")}%`).limit(12);
+      const localHits: ProductHit[] = (localResult.data ?? []).map(row => ({
+        id: `household-${row.id}`, name: row.name, brand: row.brand ?? "", barcode: row.barcode ?? "",
+        description: row.description ?? "", image: row.image_url ?? "", source: "Open Products Facts",
+      }));
       const result = await searchProducts(query);
-      setProductHits(result.hits);
-      if (result.hits.length === 0) setProductError(language === "de" ? "Kein Treffer? Du kannst unten einen eigenen Produktnamen eingeben und den Barcode direkt zuordnen." : "No match? Enter your own product name below and assign the barcode directly.");
+      const combined = [...localHits, ...result.hits.filter(hit => !localHits.some(local => local.barcode && local.barcode === hit.barcode))];
+      setProductHits(combined);
+      if (combined.length === 0) setProductError(language === "de" ? "Kein Treffer? Du kannst unten einen eigenen Produktnamen eingeben und den Barcode direkt zuordnen." : "No match? Enter your own product name below and assign the barcode directly.");
       else if (result.errors.length) setProductError(language === "de" ? "Einige Datenbanken waren nicht erreichbar: " + result.errors.join(" · ") : "Some databases could not be reached: " + result.errors.join(" · "));
     } catch (error) { setProductError(error instanceof Error ? error.message : "Produktsuche fehlgeschlagen."); }
     finally { setProductLoading(false); }
