@@ -66,7 +66,7 @@ Cloudflare baut automatisch nach jedem Commit auf dem Production-Branch.
 4. PWA sowie Android-/Windows-Pakete
 
 
-## v0.2.2
+## v0.2.3
 - Ergänzte SQL-Tabellenrechte für `authenticated`; Row Level Security bleibt aktiv.
 - Verbesserte Auth-Button-Kontraste und korrekte E-Mail-Redirect-URL zur aktuellen Website.
 - Cloud-Status zeigt Lade-/Fehlerzustand statt fälschlich immer „Cloud synchronisiert“.

@@ -71,7 +71,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
         const error = categoryResult.error ?? itemResult.error;
         console.error("Supabase load error", error);
         setCloudStatus("error");
-        setCloudError(error.message);
+        setCloudError(categoryResult.error?.message ?? itemResult.error?.message ?? "Unbekannter Fehler beim Laden der Lagerdaten.");
         return;
       }
       setCloudError("");
