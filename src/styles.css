@@ -218,3 +218,23 @@ tbody tr:last-child td{border-bottom:0}
 .cloud-error-banner small{color:#9b6868;line-height:1.5}
 .dark .cloud-error-banner{background:#44282b;border-color:#754247;color:#ffb7b7}
 .dark .cloud-error-banner small{color:#e0a3a3}
+
+
+/* v0.2.6: sichtbare Auth-Eingabefelder auch außerhalb des App-Themes */
+.auth-card input:not([type="checkbox"]){
+  background:#edf6f7 !important;
+  color:#192b35 !important;
+  border:1px solid #b8cdd1 !important;
+  min-height:44px;
+}
+.auth-card input:not([type="checkbox"]):focus{
+  background:#ffffff !important;
+  border-color:#0e9f9a !important;
+  box-shadow:0 0 0 3px #0e9f9a20;
+}
+.auth-card input:-webkit-autofill,
+.auth-card input:-webkit-autofill:hover,
+.auth-card input:-webkit-autofill:focus{
+  -webkit-text-fill-color:#192b35;
+  box-shadow:0 0 0 1000px #edf6f7 inset;
+}

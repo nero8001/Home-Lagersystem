@@ -12,11 +12,11 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
 type Page = "dashboard" | "inventory" | "categories" | "shopping" | "settings";
-type ItemForm = Omit<InventoryItem, "id" | "updatedAt" | "quantity"> & { quantity: string };
+type ItemForm = Omit<InventoryItem, "id" | "updatedAt" | "quantity" | "minQuantity"> & { quantity: string; minQuantity: string };
 
 const blankItem: ItemForm = {
   name: "", description: "", categoryId: null, quantity: "1", unit: "Stück",
-  minQuantity: 0, location: "", barcode: "", notes: "",
+  minQuantity: "0", location: "", barcode: "", notes: "",
 };
 
 function readStored<T>(key: string, fallback: T): T {
@@ -132,7 +132,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   function openEditItem(item: InventoryItem) {
     setEditingId(item.id);
     const { id: _id, updatedAt: _updatedAt, ...values } = item;
-    setForm({ ...values, quantity: String(values.quantity) });
+    setForm({ ...values, quantity: String(values.quantity), minQuantity: String(values.minQuantity) });
     setModalOpen(true);
   }
 
@@ -360,7 +360,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
         </div>
       </main>
 
-      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: Number(e.target.value) })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
+      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: e.target.value })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
     </div>
   );
 }
