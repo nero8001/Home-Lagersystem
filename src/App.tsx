@@ -112,6 +112,57 @@ function App() {
     setParentCategory("");
   }
 
+  function getDescendantIds(categoryId: string): string[] {
+    const children = categories.filter(category => category.parentId === categoryId);
+    return children.flatMap(child => [child.id, ...getDescendantIds(child.id)]);
+  }
+
+  function getCategoryItemCount(categoryId: string): number {
+    const relatedIds = [categoryId, ...getDescendantIds(categoryId)];
+    return items.filter(item => item.categoryId !== null && relatedIds.includes(item.categoryId)).length;
+  }
+
+  function renderCategoryTree(category: Category, depth = 0): ReactNode {
+    const children = categories.filter(child => child.parentId === category.id);
+    const count = getCategoryItemCount(category.id);
+    return (
+      <div className="category-tree-node" key={category.id}>
+        <div className={`category-entry ${depth > 0 ? "nested" : ""}`} style={{ paddingLeft: `${5 + depth * 25}px` }}>
+          {depth === 0
+            ? <div className="category-icon"><Archive size={17}/></div>
+            : <span className="tree-line" aria-hidden="true">↳</span>}
+          <strong>{category.name}</strong>
+          <span className="category-item-count">{count} {language === "de" ? "Artikel" : "items"}</span>
+          <div className="category-actions">
+            <button type="button" onClick={() => renameCategory(category)} aria-label={language === "de" ? `Kategorie ${category.name} umbenennen` : `Rename category ${category.name}`} title={tr("edit")}><Pencil size={14}/></button>
+            <button type="button" onClick={() => removeCategory(category)} aria-label={language === "de" ? `Kategorie ${category.name} löschen` : `Delete category ${category.name}`} title={tr("delete")}><Trash2 size={14}/></button>
+          </div>
+        </div>
+        {children.map(child => renderCategoryTree(child, depth + 1))}
+      </div>
+    );
+  }
+
+  function renameCategory(category: Category) {
+    const nextName = window.prompt(language === "de" ? "Neuer Kategoriename:" : "New category name:", category.name);
+    if (nextName === null || !nextName.trim()) return;
+    setCategories(current => current.map(entry => entry.id === category.id ? { ...entry, name: nextName.trim() } : entry));
+  }
+
+  function removeCategory(category: Category) {
+    const hasChildren = categories.some(entry => entry.parentId === category.id);
+    const hasItems = items.some(item => item.categoryId === category.id);
+    if (hasChildren || hasItems) {
+      window.alert(language === "de"
+        ? "Diese Kategorie kann noch nicht gelöscht werden. Bitte verschiebe zuerst ihre Unterkategorien und Artikel in andere Kategorien."
+        : "This category cannot be deleted yet. Move its subcategories and items to other categories first.");
+      return;
+    }
+    if (window.confirm(language === "de" ? `Kategorie „${category.name}“ wirklich löschen?` : `Delete category “${category.name}”?`)) {
+      setCategories(current => current.filter(entry => entry.id !== category.id));
+    }
+  }
+
   const navItems: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
     { id: "dashboard", label: tr("dashboard"), icon: LayoutDashboard },
     { id: "inventory", label: tr("inventory"), icon: Boxes },
@@ -205,7 +256,7 @@ function App() {
             <div className="page-heading"><div><div className="eyebrow">{tr("categories").toUpperCase()}</div><h1>{tr("categories")}</h1><p>{language === "de" ? "Organisiere dein Lager so, wie es zu deinem Zuhause passt." : "Organize your inventory to fit your home."}</p></div></div>
             <div className="category-layout">
               <section className="panel category-form-panel"><h2>{tr("newCategory")}</h2><form onSubmit={addCategory} className="stack-form"><label>{tr("name")}<input required value={categoryName} onChange={e => setCategoryName(e.target.value)} placeholder={language === "de" ? "z. B. Werkstatt" : "e.g. Workshop"}/></label><label>{tr("parentCategory")}<select value={parentCategory} onChange={e => setParentCategory(e.target.value)}><option value="">{tr("rootCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><button className="primary-button" type="submit"><Plus size={17}/>{tr("addCategory")}</button></form></section>
-              <section className="panel category-list-panel"><div className="panel-heading"><div><h2>{tr("categoryManager")}</h2><p>{categories.length} {tr("categoriesCount").toLowerCase()}</p></div><Layers3 size={20} className="muted-icon"/></div>{categories.filter(c => !c.parentId).map(parent => <div className="category-group" key={parent.id}><div className="category-entry"><div className="category-icon"><Archive size={17}/></div><strong>{parent.name}</strong><span>{items.filter(i => i.categoryId === parent.id || categories.some(c => c.id === i.categoryId && c.parentId === parent.id)).length} {language === "de" ? "Artikel" : "items"}</span></div>{categories.filter(c => c.parentId === parent.id).map(child => <div className="category-entry child" key={child.id}><span className="tree-line">↳</span><strong>{child.name}</strong><span>{items.filter(i => i.categoryId === child.id).length} {language === "de" ? "Artikel" : "items"}</span></div>)}</div>)}</section>
+              <section className="panel category-list-panel"><div className="panel-heading"><div><h2>{tr("categoryManager")}</h2><p>{categories.length} {tr("categoriesCount").toLowerCase()}</p></div><Layers3 size={20} className="muted-icon"/></div><div className="category-tree">{categories.filter(category => !category.parentId || !categories.some(parent => parent.id === category.parentId)).map(category => renderCategoryTree(category))}</div></section>
             </div>
           </>}
 
@@ -235,7 +286,7 @@ function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, c
     if (item.quantity <= item.minQuantity) return { label: tr("low"), cls: "low" };
     return { label: tr("inStock"), cls: "good" };
   }
-  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><input aria-label={`${tr("quantity")} ${item.name}`} type="number" min="0" value={item.quantity} onChange={e => onSet(item.id, Number(e.target.value))}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <><MapPin size={13}/>{item.location}</> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
+  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><input aria-label={`${tr("quantity")} ${item.name}`} type="number" min="0" value={item.quantity} onChange={e => onSet(item.id, Number(e.target.value))}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
 }
 
 export default App;
