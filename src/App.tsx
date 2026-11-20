@@ -55,6 +55,14 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [productHits, setProductHits] = useState<ProductHit[]>([]);
   const [productLoading, setProductLoading] = useState(false);
   const [productError, setProductError] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  useEffect(() => { const code = new URLSearchParams(window.location.search).get("invite"); if (code) { setJoinCode(code.toUpperCase()); setPage("settings"); } }, []);
+  const [memberRows, setMemberRows] = useState<Array<{ user_id: string; role: string; email?: string }>>([]);
+
 
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
   const handleBarcodeDetected = useCallback((value: string) => {
@@ -128,6 +136,54 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     if (!supabase) return;
     const { error } = await supabase.from("categories").upsert({ id: category.id, household_id: householdId, name: category.name, parent_id: category.parentId });
     if (error) { console.error(error); window.alert(language === "de" ? "Kategorie konnte nicht synchronisiert werden: " + error.message : "Could not sync category: " + error.message); }
+  }
+
+  async function refreshMembers() {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("household_members").select("user_id,role").eq("household_id", householdId);
+    if (error) { setInviteMessage(error.message); return; }
+    setMemberRows(data ?? []);
+  }
+
+  useEffect(() => { void refreshMembers(); }, [householdId]);
+
+  async function createInvite() {
+    if (!supabase) return;
+    setInviteBusy(true); setInviteMessage(""); setInviteCode("");
+    const { data, error } = await supabase.rpc("create_household_invite", {
+      target_household: householdId,
+      invited_email: inviteEmail.trim() || null,
+    });
+    setInviteBusy(false);
+    if (error) { setInviteMessage(error.message); return; }
+    const code = typeof data === "string" ? data : data?.code;
+    if (!code) { setInviteMessage("Einladung wurde erstellt, aber es kam kein Code zurück."); return; }
+    setInviteCode(code);
+    const link = `${window.location.origin}/?invite=${encodeURIComponent(code)}`;
+    if (inviteEmail.trim()) {
+      const { error: mailError } = await supabase.functions.invoke("send-household-invite", {
+        body: { email: inviteEmail.trim(), code, link, householdName: "Mein Zuhause" }
+      });
+      setInviteMessage(mailError
+        ? `Einladungscode erstellt. E-Mail-Versand noch nicht eingerichtet: ${mailError.message}`
+        : "Einladung erstellt und per E-Mail versendet.");
+    } else setInviteMessage("Einladungscode erstellt. Du kannst ihn oder den Link teilen.");
+  }
+
+  async function acceptInvite() {
+    if (!supabase || !joinCode.trim()) return;
+    setInviteBusy(true); setInviteMessage("");
+    const { data, error } = await supabase.rpc("accept_household_invite", { invite_code: joinCode.trim().toUpperCase() });
+    setInviteBusy(false);
+    if (error) { setInviteMessage(error.message); return; }
+    setInviteMessage("Einladung angenommen. Bitte lade die Seite neu.");
+    window.location.reload();
+  }
+
+  async function copyInvite() {
+    const link = `${window.location.origin}/?invite=${encodeURIComponent(inviteCode)}`;
+    await navigator.clipboard.writeText(link);
+    setInviteMessage("Einladungslink kopiert.");
   }
 
   const lowItems = items.filter(item => item.quantity <= item.minQuantity);
@@ -404,7 +460,11 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
 
           {page === "shopping" && <section className="panel coming-panel"><div className="coming-icon"><ShoppingCart size={27}/></div><h1>{tr("shopping")}</h1><p>{tr("shoppingHint")}</p><span className="coming-tag">{tr("comingSoon")}</span></section>}
 
-          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Produktbilder</strong><small>{language === "de" ? "Produktbilder in Suche und Vorschau anzeigen" : "Show product images in search and previews"}</small></div><label className="switch-control"><input type="checkbox" checked={showProductImages} onChange={e => setShowProductImages(e.target.checked)}/><span className="switch-slider"/></label></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section></>}
+          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Produktbilder</strong><small>{language === "de" ? "Produktbilder in Suche und Vorschau anzeigen" : "Show product images in search and previews"}</small></div><label className="switch-control"><input type="checkbox" checked={showProductImages} onChange={e => setShowProductImages(e.target.checked)}/><span className="switch-slider"/></label></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section>
+<section className="panel settings-panel household-panel"><h2>Mein Haushalt</h2><p>Mitglieder einladen und gemeinsam den Lagerbestand verwalten.</p><div className="member-list">{memberRows.map(member => <div className="setting-row" key={member.user_id}><div><strong>{member.user_id === user.id ? "Du" : "Haushaltsmitglied"}</strong><small>{member.user_id === user.id ? user.email : member.user_id}</small></div><span className="connection-pill">{member.role === "owner" ? "Besitzer" : member.role === "admin" ? "Administrator" : "Mitglied"}</span></div>)}</div>
+<div className="invite-box"><h3>Per E-Mail einladen</h3><label>E-Mail-Adresse<input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="name@beispiel.de"/></label><button className="primary-button" type="button" disabled={inviteBusy || !inviteEmail.trim()} onClick={() => void createInvite()}>{inviteBusy ? "Bitte warten …" : "Einladung per E-Mail senden"}</button></div>
+<div className="invite-box"><h3>Einladungscode erstellen</h3><p>Du kannst den Code auch persönlich weitergeben.</p><button className="secondary-button" type="button" disabled={inviteBusy} onClick={() => { setInviteEmail(""); void createInvite(); }}>Code erstellen</button>{inviteCode && <div className="invite-code"><strong>{inviteCode}</strong><button className="secondary-button" type="button" onClick={() => void copyInvite()}>Link kopieren</button></div>}</div>
+<div className="invite-box"><h3>Einladungscode einlösen</h3><label>Code<input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="ABCD-1234"/></label><button className="secondary-button" type="button" disabled={inviteBusy || !joinCode.trim()} onClick={() => void acceptInvite()}>Haushalt beitreten</button></div>{inviteMessage && <div className="auth-message">{inviteMessage}</div>}</section></>}
         </div>
       </main>
 
@@ -509,6 +569,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [needsHousehold, setNeedsHousehold] = useState(false);
   const [newHouseholdName, setNewHouseholdName] = useState("Mein Zuhause");
+  const [setupInviteCode, setSetupInviteCode] = useState(() => new URLSearchParams(window.location.search).get("invite")?.toUpperCase() ?? "");
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -574,6 +635,15 @@ function App() {
     if (!checked) localStorage.removeItem("lager-saved-email");
   }
 
+  async function joinHouseholdFromSetup() {
+    if (!supabase || !setupInviteCode.trim()) return;
+    setAuthBusy(true); setAuthMessage("");
+    const { error } = await supabase.rpc("accept_household_invite", { invite_code: setupInviteCode.trim().toUpperCase() });
+    setAuthBusy(false);
+    if (error) setAuthMessage(error.message);
+    else window.location.reload();
+  }
+
   async function createHousehold(event: FormEvent) {
     event.preventDefault();
     if (!supabase || !newHouseholdName.trim()) return;
@@ -597,6 +667,6 @@ function App() {
   }
   if (loading) return <div className="auth-screen"><div className="auth-card">Verbindung wird hergestellt …</div></div>;
   if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="off"/></label>{authMode === "login" && <label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e => toggleRememberEmail(e.target.checked)}/> E-Mail speichern</label>}<label>Passwort<input type="password" required minLength={authMode === "signup" ? 8 : 1} pattern={authMode === "signup" ? "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+" : undefined} title={authMode === "signup" ? "Mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl." : undefined} value={password} onChange={e => setPassword(e.target.value)} autoComplete="off"/></label>{authMode === "signup" && <p className="password-hint">Passwort: mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl.</p>}{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button>{authMode === "login" && <button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button>}<div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { const nextMode = authMode === "login" ? "signup" : "login"; setAuthMode(nextMode); setPassword(""); setAuthMessage(""); if (nextMode === "signup") setEmail(""); else if (rememberEmail) setEmail(localStorage.getItem("lager-saved-email") ?? ""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
-  if (needsHousehold || !householdId) return <div className="auth-screen"><form className="auth-card" onSubmit={createHousehold}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">FAST GESCHAFFT</div><h1>Dein erster Haushalt</h1><p>Ein Haushalt enthält deine Kategorien und Artikel. Später kannst du weitere Personen einladen.</p><label>Name des Haushalts<input required value={newHouseholdName} onChange={e => setNewHouseholdName(e.target.value)}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Wird erstellt …" : "Haushalt erstellen"}</button><button type="button" className="auth-link" onClick={signOut}>Abmelden</button></form></div>;
+  if (needsHousehold || !householdId) return <div className="auth-screen"><form className="auth-card" onSubmit={createHousehold}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">FAST GESCHAFFT</div><h1>Dein erster Haushalt</h1><p>Ein Haushalt enthält deine Kategorien und Artikel. Du kannst einen bestehenden Haushalt auch über einen Einladungscode betreten.</p><label>Einladungscode (optional)<input value={setupInviteCode} onChange={e => setSetupInviteCode(e.target.value.toUpperCase())} placeholder="ABCD-1234"/></label>{setupInviteCode.trim() && <button type="button" className="secondary-button" disabled={authBusy} onClick={joinHouseholdFromSetup}>Einladung annehmen</button>}<label>Name des Haushalts<input required value={newHouseholdName} onChange={e => setNewHouseholdName(e.target.value)}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Wird erstellt …" : "Haushalt erstellen"}</button><button type="button" className="auth-link" onClick={signOut}>Abmelden</button></form></div>;
   return <InventoryApp user={sessionUser} householdId={householdId} onSignOut={signOut}/>;
 }
