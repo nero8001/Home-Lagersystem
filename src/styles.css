@@ -238,3 +238,18 @@ tbody tr:last-child td{border-bottom:0}
   -webkit-text-fill-color:#192b35;
   box-shadow:0 0 0 1000px #edf6f7 inset;
 }
+
+/* Barcode scanner (v0.3.0) */
+.barcode-entry{display:flex;gap:8px;align-items:stretch}
+.barcode-entry input{flex:1;min-width:0}
+.barcode-scan-button{white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px}
+.scanner-backdrop{position:fixed;inset:0;z-index:80;background:#071923c9;backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px}
+.scanner-dialog{width:min(520px,100%);background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 24px 80px #0005}
+.scanner-video-wrap{position:relative;width:100%;aspect-ratio:4/3;overflow:hidden;background:#071116;border-radius:12px;display:grid;place-items:center}
+.scanner-video-wrap video{width:100%;height:100%;object-fit:cover}
+.scanner-frame{position:absolute;width:78%;height:34%;border:3px solid #27d4bd;border-radius:12px;box-shadow:0 0 0 999px #0003;pointer-events:none}
+.scanner-hint{font-size:12px;color:var(--muted);text-align:center;line-height:1.5;margin:13px 0}
+.scanner-cancel{width:100%;justify-content:center}
+.scanner-error{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:20px 8px;color:var(--muted)}
+.scanner-error p{font-size:13px;line-height:1.55;margin:0 0 6px}
+@media(max-width:420px){.barcode-scan-button{padding:9px}.barcode-scan-button svg{width:16px}.scanner-dialog{padding:15px}}

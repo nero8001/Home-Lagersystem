@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   Archive, Boxes, ChevronDown, ChevronRight, CircleAlert,
   LayoutDashboard, Languages, MapPin, Menu, Moon, PackagePlus, Pencil,
-  Plus, Search, Settings, ShoppingCart, Sun, Trash2, X, Minus, Check,
+  Plus, Search, Settings, ShoppingCart, Sun, Trash2, X, Minus, Check, ScanBarcode,
   Layers3, ArrowUpRight, Package
 } from "lucide-react";
 import type { Category, InventoryItem, Language } from "./types";
@@ -41,6 +41,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ItemForm>(blankItem);
   const [categoryName, setCategoryName] = useState("");
@@ -49,6 +50,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [mobileNav, setMobileNav] = useState(false);
 
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
+  const handleBarcodeDetected = useCallback((value: string) => { setForm(current => ({ ...current, barcode: value })); setScannerOpen(false); }, []);
 
   useEffect(() => localStorage.setItem("lager-items", JSON.stringify(items)), [items]);
   useEffect(() => localStorage.setItem("lager-categories", JSON.stringify(categories)), [categories]);
@@ -360,9 +362,63 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
         </div>
       </main>
 
-      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: e.target.value })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
+      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: e.target.value })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<div className="barcode-entry"><input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/><button type="button" className="secondary-button barcode-scan-button" onClick={() => setScannerOpen(true)}><ScanBarcode size={17}/>{language === "de" ? "Scannen" : "Scan"}</button></div></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
+      {scannerOpen && <BarcodeScanner language={language} onClose={() => setScannerOpen(false)} onDetected={handleBarcodeDetected}/>}
     </div>
   );
+}
+
+function BarcodeScanner({ language, onClose, onDetected }: { language: Language; onClose: () => void; onDetected: (value: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let frame = 0;
+    let active = true;
+    const start = async () => {
+      const Detector = (window as Window & { BarcodeDetector?: (new (options?: { formats?: string[] }) => { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> }) & { getSupportedFormats?: () => Promise<string[]> } }).BarcodeDetector;
+      if (!Detector) {
+        setError(language === "de" ? "Dieser Browser unterstützt das direkte Barcode-Scannen leider nicht. Bitte gib den Barcode manuell ein oder nutze einen aktuellen Chrome-Browser." : "This browser does not support direct barcode scanning. Please enter the barcode manually or use a current Chrome browser.");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError(language === "de" ? "Der Kamerazugriff ist in diesem Browser nicht verfügbar." : "Camera access is not available in this browser.");
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        const video = videoRef.current;
+        if (!active || !video) { stream.getTracks().forEach(track => track.stop()); return; }
+        video.srcObject = stream;
+        await video.play();
+        const wantedFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"];
+        const supportedFormats = Detector.getSupportedFormats ? await Detector.getSupportedFormats() : wantedFormats;
+        const formats = wantedFormats.filter(format => supportedFormats.includes(format));
+        if (formats.length === 0) throw new Error("No supported barcode formats");
+        const detector = new Detector({ formats });
+        const scan = async () => {
+          if (!active || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(video);
+            const value = codes.find(code => code.rawValue)?.rawValue;
+            if (value) { onDetected(value); return; }
+          } catch { /* Continue scanning while the camera is active. */ }
+          if (active) frame = requestAnimationFrame(() => { void scan(); });
+        };
+        frame = requestAnimationFrame(() => { void scan(); });
+      } catch (cause) {
+        const name = cause instanceof DOMException ? cause.name : "";
+        setError(name === "NotAllowedError"
+          ? (language === "de" ? "Der Kamerazugriff wurde nicht erlaubt. Bitte erteile dem Browser die Kameraberechtigung." : "Camera access was denied. Please allow camera access in your browser.")
+          : (language === "de" ? "Die Kamera konnte nicht gestartet werden. Prüfe bitte die Kameraberechtigung und versuche es erneut." : "The camera could not be started. Please check camera permissions and try again."));
+      }
+    };
+    void start();
+    return () => { active = false; cancelAnimationFrame(frame); stream?.getTracks().forEach(track => track.stop()); };
+  }, [language, onDetected]);
+
+  return <div className="scanner-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="scanner-dialog" role="dialog" aria-modal="true" aria-label={language === "de" ? "Barcode scannen" : "Scan barcode"}><div className="modal-header"><div><div className="eyebrow">LAGERZUHAUSE</div><h2>{language === "de" ? "Barcode scannen" : "Scan barcode"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label={language === "de" ? "Schließen" : "Close"}><X size={20}/></button></div>{error ? <div className="scanner-error"><ScanBarcode size={28}/><p>{error}</p><button type="button" className="primary-button" onClick={onClose}>{language === "de" ? "Schließen" : "Close"}</button></div> : <><div className="scanner-video-wrap"><video ref={videoRef} muted playsInline/><div className="scanner-frame"/></div><p className="scanner-hint">{language === "de" ? "Halte den Barcode ruhig in den markierten Bereich." : "Hold the barcode steady inside the marked area."}</p><button type="button" className="secondary-button scanner-cancel" onClick={onClose}>{language === "de" ? "Abbrechen" : "Cancel"}</button></>}</section></div>;
 }
 
 function StatCard({ icon, label, value, detail, tone }: { icon: ReactNode; label: string; value: string; detail: string; tone: string }) {
