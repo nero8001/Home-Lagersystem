@@ -1,6 +1,6 @@
 # Lagerprogramm für Zuhause
 
-Version **0.5.0**
+Version **0.6.0**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
@@ -49,6 +49,19 @@ Open Products Facts ist experimentell und kann eine geringere Datenabdeckung hab
 - Nicht gelistete Produkte lassen sich manuell benennen und mit einem Barcode speichern.
 
 
-### v0.5.0
+### v0.6.0
 - Haushaltsweiter Produktkatalog: manuell erfasste Artikel mit Barcode werden für alle Mitglieder des Haushalts wiederverwendbar.
 - Produktsuche prüft zuerst den eigenen Haushaltskatalog und ergänzt anschließend externe Produktdatenbanken.
+
+
+## v0.6.0 – Haushalts-Einladungen
+- Mitgliederverwaltung mit Einladungen per E-Mail und teilbarem Einladungscode.
+- Einladungen sind 7 Tage gültig, einmalig verwendbar und optional an eine E-Mail-Adresse gebunden.
+- Supabase Edge Function für den E-Mail-Versand (Resend) ergänzt.
+
+### Einrichtung der Einladungen
+1. `supabase/household_invites.sql` einmal im Supabase SQL Editor ausführen.
+2. Die Edge Function `supabase/functions/send-household-invite/index.ts` als `send-household-invite` deployen.
+3. In den Edge-Function-Secrets `RESEND_API_KEY` und `INVITE_FROM_EMAIL` hinterlegen. Die Absenderadresse muss bei Resend verifiziert sein.
+4. Ohne eingerichteten E-Mail-Versand kann weiterhin ein Einladungscode erzeugt und der Einladungslink geteilt werden.
+5. Einladungscodes laufen nach 7 Tagen ab und können nur einmal eingelöst werden.
