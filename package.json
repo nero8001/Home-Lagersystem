@@ -1,7 +1,7 @@
 {
   "name": "lagerprogramm-zuhause",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,4 +21,4 @@
     "typescript": "~5.7.2",
     "vite": "^6.0.7"
   }
-}\n
+}
