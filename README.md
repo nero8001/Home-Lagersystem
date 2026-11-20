@@ -1,6 +1,6 @@
 # Lagerprogramm für Zuhause
 
-Version **0.4.1**
+Version **0.5.0**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
@@ -47,3 +47,8 @@ Open Products Facts ist experimentell und kann eine geringere Datenabdeckung hab
 - Barcode direkt im Produktsuchfeld per Kamera scannen.
 - Gescannte Nummer wird als Suchbegriff und Artikel-Barcode übernommen.
 - Nicht gelistete Produkte lassen sich manuell benennen und mit einem Barcode speichern.
+
+
+### v0.5.0
+- Haushaltsweiter Produktkatalog: manuell erfasste Artikel mit Barcode werden für alle Mitglieder des Haushalts wiederverwendbar.
+- Produktsuche prüft zuerst den eigenen Haushaltskatalog und ergänzt anschließend externe Produktdatenbanken.
