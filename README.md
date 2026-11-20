@@ -1,11 +1,20 @@
 # Lagerprogramm für Zuhause
 
-Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.6**.
+Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.3.0**.
+
+## v0.3.0
+- Barcode-Scanner über die Gerätekamera direkt im Artikel-Formular ergänzt.
+- Erkannte EAN-/UPC-/Code-128-/Code-39-/QR-Codes werden automatisch ins Barcode-Feld übernommen und wie gewohnt mit dem Artikel gespeichert.
+- Manuelle Barcode-Eingabe bleibt verfügbar; verständliche Hinweise bei fehlender Browserunterstützung oder verweigertem Kamerazugriff.
 
 ## v0.2.6
 - Mindestbestand-Feld kann beim Bearbeiten leer sein; ein leerer Wert wird erst beim Speichern zu 0.
 - E-Mail- und Passwortfelder sind im Login-/Registrierungsbereich dauerhaft sichtbar hinterlegt, auch auf Mobilgeräten.
 
+## v0.2.5
+- Mobiles Seitenmenü ist scrollbar, damit auch der Abmelden-Eintrag erreichbar bleibt.
+- Mengen- und Mindestbestandsfelder lassen sich vollständig leeren; beim Speichern wird ein leerer Wert zu 0.
+- Registrierung prüft die Passwortanforderungen; E-Mail kann optional nur beim Login gespeichert werden, Passwörter bleiben ungespeichert.
 
 ## Lokal starten
 
@@ -55,14 +64,7 @@ Cloudflare baut automatisch nach jedem Commit auf dem Production-Branch.
 
 ## Nächste Schritte
 
-1. Haushalts-Einladungen und Rollenverwaltung in der Oberfläche
-2. Barcode-Scanner und Produktsuche
-3. Einkaufsliste
+1. Produktsuche anhand erkannter Barcodes (Datenquelle und Trefferqualität prüfen)
+2. Einkaufsliste
+3. Haushalts-Einladungen und Rollenverwaltung
 4. PWA sowie Android-/Windows-Pakete
-
-
-## v0.2.4
-- Ergänzte SQL-Tabellenrechte für `authenticated`; Row Level Security bleibt aktiv.
-- Verbesserte Auth-Button-Kontraste und korrekte E-Mail-Redirect-URL zur aktuellen Website.
-- Cloud-Status zeigt Lade-/Fehlerzustand statt fälschlich immer „Cloud synchronisiert“.
-- `supabase/fix_permissions.sql` ergänzt zur nachträglichen Rechtekorrektur bestehender Projekte.
