@@ -1,12 +1,11 @@
 # Lagerprogramm für Zuhause
 
-Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.5**.
+Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.6**.
 
-## v0.2.5
-- Mobiles Seitenmenü ist scrollbar; Abmelden bleibt auf kleinen Displays erreichbar
-- Mengenfelder können geleert werden; ein leerer Wert wird erst beim Speichern zu 0
-- Registrierung prüft Passwort auf mindestens 8 Zeichen, Groß-/Kleinbuchstaben und Zahl
-- Anmeldedaten werden nicht dauerhaft gespeichert; optionale E-Mail-Merkfunktion nur bei Anmeldung
+## v0.2.6
+- Mindestbestand-Feld kann beim Bearbeiten leer sein; ein leerer Wert wird erst beim Speichern zu 0.
+- E-Mail- und Passwortfelder sind im Login-/Registrierungsbereich dauerhaft sichtbar hinterlegt, auch auf Mobilgeräten.
+
 
 ## Lokal starten
 
