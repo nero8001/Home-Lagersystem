@@ -12,10 +12,10 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
 type Page = "dashboard" | "inventory" | "categories" | "shopping" | "settings";
-type ItemForm = Omit<InventoryItem, "id" | "updatedAt">;
+type ItemForm = Omit<InventoryItem, "id" | "updatedAt" | "quantity"> & { quantity: string };
 
 const blankItem: ItemForm = {
-  name: "", description: "", categoryId: null, quantity: 1, unit: "Stück",
+  name: "", description: "", categoryId: null, quantity: "1", unit: "Stück",
   minQuantity: 0, location: "", barcode: "", notes: "",
 };
 
@@ -132,7 +132,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   function openEditItem(item: InventoryItem) {
     setEditingId(item.id);
     const { id: _id, updatedAt: _updatedAt, ...values } = item;
-    setForm(values);
+    setForm({ ...values, quantity: String(values.quantity) });
     setModalOpen(true);
   }
 
@@ -278,7 +278,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
           <div><strong>Lager<span>Zuhause</span></strong><small>PRIVATES LAGERSYSTEM</small></div>
           <button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Menü schließen"><X size={19}/></button>
         </div>
-        <div className="workspace-label">WORKSPACE</div>
+        <div className="sidebar-scroll"><div className="workspace-label">WORKSPACE</div>
         <nav>
           {navItems.map(({ id, label, icon: Icon }) => (
             <button key={id} className={`nav-link ${page === id ? "active" : ""}`} onClick={() => goTo(id)}>
@@ -295,7 +295,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
           </div>
           <button className={`nav-link ${page === "settings" ? "active" : ""}`} onClick={() => goTo("settings")}><Settings size={18}/><span>{tr("settings")}</span></button>
           <div className="profile-row"><div className="avatar">{(user.email ?? "U").slice(0,1).toUpperCase()}</div><div><strong>{user.email ?? tr("welcome")}</strong><small>{language === "de" ? "Synchronisiert" : "Synced"}</small></div><button className="signout-mini" onClick={onSignOut}>{language === "de" ? "Abmelden" : "Sign out"}</button></div>
-        </div>
+        </div></div>
       </aside>
 
       {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="Menü schließen"/>}
@@ -360,13 +360,22 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
         </div>
       </main>
 
-      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: Number(e.target.value) })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
+      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: Number(e.target.value) })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
     </div>
   );
 }
 
 function StatCard({ icon, label, value, detail, tone }: { icon: ReactNode; label: string; value: string; detail: string; tone: string }) {
   return <div className="stat-card"><div className={`stat-icon ${tone}`}>{icon}</div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-detail">{detail}</div></div>;
+}
+
+function QuantityInput({ item, label, onCommit }: { item: InventoryItem; label: string; onCommit: (value: number) => void }) {
+  const [value, setValue] = useState(String(item.quantity));
+  useEffect(() => setValue(String(item.quantity)), [item.quantity]);
+  return <input aria-label={label} type="number" min="0" step="1" value={value}
+    onChange={event => setValue(event.target.value)}
+    onBlur={() => { const next = Math.max(0, Number(value) || 0); setValue(String(next)); if (next !== item.quantity) onCommit(next); }}
+    onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>;
 }
 
 function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, compact = false }: {
@@ -380,7 +389,7 @@ function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, c
     if (item.quantity <= item.minQuantity) return { label: tr("low"), cls: "low" };
     return { label: tr("inStock"), cls: "good" };
   }
-  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><input aria-label={`${tr("quantity")} ${item.name}`} type="number" min="0" value={item.quantity} onChange={e => onSet(item.id, Number(e.target.value))}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
+  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><QuantityInput item={item} label={`${tr("quantity")} ${item.name}`} onCommit={value => onSet(item.id, value)}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
 }
 
 export default App;
@@ -389,8 +398,9 @@ export default App;
 function App() {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem("lager-saved-email") ?? "");
   const [password, setPassword] = useState("");
+  const [rememberEmail, setRememberEmail] = useState(() => Boolean(localStorage.getItem("lager-saved-email")));
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
@@ -428,13 +438,38 @@ function App() {
   async function submitAuth(event: FormEvent) {
     event.preventDefault();
     if (!supabase) return;
+    const submittedEmail = email.trim();
+    const submittedPassword = password;
+    if (authMode === "signup" && !(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(submittedPassword))) {
+      setAuthMessage("Das Passwort muss mindestens 8 Zeichen sowie einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.");
+      setPassword("");
+      return;
+    }
     setAuthBusy(true); setAuthMessage("");
-    const result = authMode === "signup"
-      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/` } })
-      : await supabase.auth.signInWithPassword({ email, password });
+    const mode = authMode;
+    const result = mode === "signup"
+      ? await supabase.auth.signUp({ email: submittedEmail, password: submittedPassword, options: { emailRedirectTo: `${window.location.origin}/` } })
+      : await supabase.auth.signInWithPassword({ email: submittedEmail, password: submittedPassword });
     setAuthBusy(false);
+    setPassword("");
+    if (mode === "signup") {
+      localStorage.removeItem("lager-saved-email");
+      setRememberEmail(false);
+      setEmail("");
+    } else if (rememberEmail) {
+      localStorage.setItem("lager-saved-email", submittedEmail);
+      setEmail(submittedEmail);
+    } else {
+      localStorage.removeItem("lager-saved-email");
+      setEmail("");
+    }
     if (result.error) setAuthMessage(result.error.message);
-    else if (authMode === "signup" && !result.data.session) setAuthMessage("Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse und melde dich anschließend an.");
+    else if (mode === "signup" && !result.data.session) setAuthMessage("Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse und melde dich anschließend an.");
+  }
+
+  function toggleRememberEmail(checked: boolean) {
+    setRememberEmail(checked);
+    if (!checked) localStorage.removeItem("lager-saved-email");
   }
 
   async function createHousehold(event: FormEvent) {
@@ -459,7 +494,7 @@ function App() {
     return <div className="auth-screen"><div className="auth-card"><div className="brand-mark auth-mark"><Boxes size={25}/></div><h1>Supabase noch nicht verbunden</h1><p>Trage zuerst die Supabase-Projekt-URL und den öffentlichen Publishable-/Anon-Key als Cloudflare-Environment-Variablen ein. Danach erscheint hier die Anmeldung.</p></div></div>;
   }
   if (loading) return <div className="auth-screen"><div className="auth-card">Verbindung wird hergestellt …</div></div>;
-  if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"/></label><label>Passwort<input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} autoComplete={authMode === "login" ? "current-password" : "new-password"}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button><button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button><div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthMessage(""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
+  if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="off"/></label>{authMode === "login" && <label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e => toggleRememberEmail(e.target.checked)}/> E-Mail speichern</label>}<label>Passwort<input type="password" required minLength={authMode === "signup" ? 8 : 1} pattern={authMode === "signup" ? "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+" : undefined} title={authMode === "signup" ? "Mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl." : undefined} value={password} onChange={e => setPassword(e.target.value)} autoComplete="off"/></label>{authMode === "signup" && <p className="password-hint">Passwort: mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl.</p>}{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button>{authMode === "login" && <button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button>}<div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { const nextMode = authMode === "login" ? "signup" : "login"; setAuthMode(nextMode); setPassword(""); setAuthMessage(""); if (nextMode === "signup") setEmail(""); else if (rememberEmail) setEmail(localStorage.getItem("lager-saved-email") ?? ""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
   if (needsHousehold || !householdId) return <div className="auth-screen"><form className="auth-card" onSubmit={createHousehold}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">FAST GESCHAFFT</div><h1>Dein erster Haushalt</h1><p>Ein Haushalt enthält deine Kategorien und Artikel. Später kannst du weitere Personen einladen.</p><label>Name des Haushalts<input required value={newHouseholdName} onChange={e => setNewHouseholdName(e.target.value)}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Wird erstellt …" : "Haushalt erstellen"}</button><button type="button" className="auth-link" onClick={signOut}>Abmelden</button></form></div>;
   return <InventoryApp user={sessionUser} householdId={householdId} onSignOut={signOut}/>;
 }
