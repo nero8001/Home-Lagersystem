@@ -1,16 +1,12 @@
 # Lagerprogramm für Zuhause
 
-Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.1**.
+Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.5**.
 
-## v0.2.1
-- TypeScript-Fix für optionale Supabase-Client-Initialisierung im Datenlade-/Realtime-Effekt
-
-## v0.2.0
-- Supabase Auth: Registrierung, Anmeldung, Abmeldung und Passwort-Reset
-- Haushaltsmodell mit Owner-/Admin-/Member-Rollen als Grundlage für gemeinsames Verwalten
-- Kategorien und Artikel werden haushaltsbezogen in Supabase gespeichert
-- Live-Aktualisierung über Supabase Realtime
-- Row Level Security (RLS) schützt Haushaltsdaten
+## v0.2.5
+- Mobiles Seitenmenü ist scrollbar; Abmelden bleibt auf kleinen Displays erreichbar
+- Mengenfelder können geleert werden; ein leerer Wert wird erst beim Speichern zu 0
+- Registrierung prüft Passwort auf mindestens 8 Zeichen, Groß-/Kleinbuchstaben und Zahl
+- Anmeldedaten werden nicht dauerhaft gespeichert; optionale E-Mail-Merkfunktion nur bei Anmeldung
 
 ## Lokal starten
 
