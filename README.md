@@ -1,70 +1,43 @@
 # Lagerprogramm für Zuhause
 
-Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.3.0**.
+Version **0.4.0**
 
-## v0.3.0
-- Barcode-Scanner über die Gerätekamera direkt im Artikel-Formular ergänzt.
-- Erkannte EAN-/UPC-/Code-128-/Code-39-/QR-Codes werden automatisch ins Barcode-Feld übernommen und wie gewohnt mit dem Artikel gespeichert.
-- Manuelle Barcode-Eingabe bleibt verfügbar; verständliche Hinweise bei fehlender Browserunterstützung oder verweigertem Kamerazugriff.
+Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
-## v0.2.6
-- Mindestbestand-Feld kann beim Bearbeiten leer sein; ein leerer Wert wird erst beim Speichern zu 0.
-- E-Mail- und Passwortfelder sind im Login-/Registrierungsbereich dauerhaft sichtbar hinterlegt, auch auf Mobilgeräten.
+## v0.4.0 – Produktsuche und Produktbilder
+- Gemeinsame Produktsuche über Open Food Facts, Open Beauty Facts und Open Products Facts (Barcode- und Textsuche).
+- Kuratierte Produktvorlagen für BioTechUSA-Proteinpulver und Bambu-Lab-Filamente.
+- Produktbilder können über den dauerhaft gespeicherten Schalter „Produktbilder“ global ein- und ausgeblendet werden.
+- Treffer können direkt in das Artikelformular übernommen und anschließend wie gewohnt in Supabase gespeichert werden.
 
-## v0.2.5
-- Mobiles Seitenmenü ist scrollbar, damit auch der Abmelden-Eintrag erreichbar bleibt.
-- Mengen- und Mindestbestandsfelder lassen sich vollständig leeren; beim Speichern wird ein leerer Wert zu 0.
-- Registrierung prüft die Passwortanforderungen; E-Mail kann optional nur beim Login gespeichert werden, Passwörter bleiben ungespeichert.
-
-## Lokal starten
+## Entwicklung
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Supabase einrichten
+Build für Cloudflare Pages:
 
-**Wichtig:** Verwende ein neues, ausschließlich für dieses Lagerprogramm angelegtes Supabase-Projekt. Das SQL-Schema ist für eine frische Datenbank gedacht und nicht als Upgrade des alten Demo-Schemas.
+```bash
+npm run build
+```
 
-1. Erstelle ein Supabase-Projekt.
-2. Öffne den SQL Editor und führe `supabase/schema.sql` vollständig aus.
-3. Öffne Authentication → URL Configuration.
-4. Setze Site URL auf `https://home-lagersystem.pages.dev` (später auf die eigene Lagerprogramm-Domain ändern).
-5. Füge unter Redirect URLs auch `https://home-lagersystem.pages.dev/**` hinzu.
-6. Öffne Project Settings → API und kopiere Project URL sowie den öffentlichen Publishable Key (oder legacy anon key).
-7. Trage beide Werte in Cloudflare unter Workers & Pages → home-lagersystem → Settings → Environment variables ein:
-   - `VITE_SUPABASE_URL` = Project URL
-   - `VITE_SUPABASE_ANON_KEY` = öffentlicher Publishable-/anon-Key
-8. Hinterlege die Variablen mindestens für Production und löse anschließend ein neues Deployment aus.
+Build-Ausgabe: `dist`
 
-**Niemals** den `service_role`-Key oder einen Secret Key in die Web-App oder in GitHub eintragen. RLS ist aktiv und muss aktiviert bleiben.
+## Konfiguration
 
-### E-Mail-Bestätigung
+Lege in der Deployment-Umgebung diese Variablen an:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY` (öffentlicher Publishable-/Anon-Key, niemals ein Service-Role- oder Secret-Key)
 
-Die Registrierung kann eine E-Mail-Bestätigung verlangen. Für den Produktivbetrieb sollte in Supabase ein passender SMTP-Anbieter eingerichtet werden. Ohne eigene SMTP-Konfiguration können die standardmäßigen Auth-E-Mail-Limits greifen.
+Das Supabase-Schema befindet sich unter `supabase/schema.sql`.
 
-## Datenmodell
+## Datenquellen und Hinweise
 
-- `households`: eigenständige Haushalte
-- `household_members`: Benutzerzuordnung und Rolle (`owner`, `admin`, `member`)
-- `categories`: verschachtelte Kategorien je Haushalt
-- `inventory_items`: Artikel je Haushalt
+- Open Food Facts: https://world.openfoodfacts.org/
+- Open Beauty Facts: https://world.openbeautyfacts.org/
+- Open Products Facts: https://world.openproductsfacts.org/
+- BioTechUSA und Bambu Lab: lokale Produktvorlagen zur Ergänzung durch manuelle Angaben.
 
-Ein Benutzer kann in mehreren Haushalten Mitglied sein. Die aktuelle Oberfläche erstellt beim ersten Login einen Haushalt. Einladungsverwaltung und Haushaltswechsel folgen in einem späteren Schritt.
-
-## Cloudflare Pages
-
-- Framework: React (Vite)
-- Build command: `npm run build`
-- Build output directory: `dist`
-- Production branch: `main`
-
-Cloudflare baut automatisch nach jedem Commit auf dem Production-Branch.
-
-## Nächste Schritte
-
-1. Produktsuche anhand erkannter Barcodes (Datenquelle und Trefferqualität prüfen)
-2. Einkaufsliste
-3. Haushalts-Einladungen und Rollenverwaltung
-4. PWA sowie Android-/Windows-Pakete
+Open Products Facts ist experimentell und kann eine geringere Datenabdeckung haben. Die externen Produktdaten werden zur Suche live abgefragt; die Auswahl wird erst beim Speichern als eigener Lagerartikel in Supabase abgelegt. Die ODbL-/Attributionsbedingungen der Open-Facts-Datenbanken und die jeweiligen Bildlizenzen sind vor öffentlicher Weitergabe oder Aufbau eines abgeleiteten Gesamtkatalogs zu beachten. USDA FoodData Central ist in dieser Version noch nicht integriert, da dafür eine serverseitig zu verwaltende API-Konfiguration sinnvoll ist.
