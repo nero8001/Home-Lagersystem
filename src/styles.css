@@ -195,3 +195,21 @@ tbody tr:last-child td{border-bottom:0}
 .auth-message{padding:10px 12px;border-radius:8px;background:#fff3e5;color:#9c6829;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .signout-mini{border:0;background:transparent;color:var(--muted);font-size:9px;font-weight:700;padding:5px}
 .signout-mini:hover{color:var(--teal)}
+
+
+/* v0.2.2: clearer authentication controls and truthful cloud status */
+.auth-card .auth-submit{background:#0faaa4;color:#fff;opacity:1;min-height:44px;font-weight:800}
+.auth-card .auth-submit:hover:not(:disabled){background:#087f7b}
+.auth-card .auth-submit:disabled{background:#0faaa4;color:#fff;opacity:.72}
+.auth-card .auth-link{color:#087f7b;text-decoration:underline;text-underline-offset:3px}
+.auth-card .auth-switch button{color:#087f7b;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.sync-status{display:inline-flex;align-items:center;gap:6px}
+.sync-status.loading{color:#a87932}
+.sync-status.loading span{background:#d69b42}
+.sync-status.error{color:#c34f4f}
+.sync-status.error span{background:#c34f4f}
+.cloud-error-banner{display:grid;gap:5px;margin:0 0 18px;padding:13px 15px;border:1px solid #e8b5b5;border-radius:10px;background:#fff3f3;color:#913e3e;font-size:11px;overflow-wrap:anywhere}
+.cloud-error-banner span{font-weight:600}
+.cloud-error-banner small{color:#9b6868;line-height:1.5}
+.dark .cloud-error-banner{background:#44282b;border-color:#754247;color:#ffb7b7}
+.dark .cloud-error-banner small{color:#e0a3a3}

@@ -32,6 +32,8 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [language, setLanguage] = useState<Language>(() => readStored("lager-language", "de"));
   const [items, setItems] = useState<InventoryItem[]>(() => readStored("lager-items", demoItems));
   const [categories, setCategories] = useState<Category[]>(() => readStored("lager-categories", demoCategories));
+  const [cloudStatus, setCloudStatus] = useState<"loading" | "synced" | "error">("loading");
+  const [cloudError, setCloudError] = useState("");
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() =>
     new Set(readStored<Category[]>("lager-categories", demoCategories).map(category => category.id))
   );
@@ -57,7 +59,8 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   useEffect(() => {
     let active = true;
     const client = supabase;
-    if (!client) return;
+    if (!client) { setCloudStatus("error"); setCloudError("Supabase ist nicht konfiguriert."); return; }
+    setCloudStatus("loading");
     const loadHouseholdData = async () => {
       const [categoryResult, itemResult] = await Promise.all([
         client.from("categories").select("id,name,parent_id").eq("household_id", householdId).order("name"),
@@ -65,10 +68,14 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
       ]);
       if (!active) return;
       if (categoryResult.error || itemResult.error) {
-        console.error("Supabase load error", categoryResult.error ?? itemResult.error);
-        window.alert(language === "de" ? "Die Lagerdaten konnten nicht geladen werden. Bitte Supabase-Schema und Berechtigungen prüfen." : "Could not load inventory data. Please check the Supabase schema and permissions.");
+        const error = categoryResult.error ?? itemResult.error;
+        console.error("Supabase load error", error);
+        setCloudStatus("error");
+        setCloudError(error.message);
         return;
       }
+      setCloudError("");
+      setCloudStatus("synced");
       setCategories((categoryResult.data ?? []).map(row => ({ id: row.id, name: row.name, parentId: row.parent_id })));
       setExpandedCategoryIds(new Set((categoryResult.data ?? []).map(row => row.id)));
       setItems((itemResult.data ?? []).map(row => ({
@@ -298,7 +305,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
           <button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menü öffnen"><Menu size={20}/></button>
           <div className="breadcrumb">LagerZuhause <span>/</span> {navItems.find(n => n.id === page)?.label ?? tr("settings")}</div>
           <div className="top-actions">
-            <span className="sync-status"><span/> {language === "de" ? "Cloud synchronisiert" : "Cloud synced"}</span>
+            <span className={`sync-status ${cloudStatus}`} title={cloudError || undefined}><span/> {cloudStatus === "loading" ? (language === "de" ? "Cloud lädt …" : "Loading cloud …") : cloudStatus === "error" ? (language === "de" ? "Cloud-Fehler" : "Cloud error") : (language === "de" ? "Cloud synchronisiert" : "Cloud synced")}</span>
             <button className="icon-button" onClick={() => setLanguage(language === "de" ? "en" : "de")} title={tr("language")}><Languages size={18}/><small>{language.toUpperCase()}</small></button>
             <button className="icon-button" onClick={() => setDark(!dark)} title="Design wechseln">{dark ? <Sun size={18}/> : <Moon size={18}/>}</button>
             <div className="top-avatar">L</div>
@@ -306,6 +313,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
         </header>
 
         <div className="content">
+          {cloudStatus === "error" && <div className="cloud-error-banner" role="status"><strong>{language === "de" ? "Cloud-Daten konnten nicht geladen werden" : "Could not load cloud data"}</strong><span>{cloudError}</span><small>{language === "de" ? "Bitte Datenbankrechte und RLS-Richtlinien prüfen. Lokale Demodaten werden nicht als synchronisiert angezeigt." : "Please check database grants and RLS policies. Local demo data is not shown as synced."}</small></div>}
           {page === "dashboard" && <>
             <div className="page-heading">
               <div><div className="eyebrow">DEIN PRIVATES LAGER</div><h1>{tr("greeting")}</h1><p>{tr("subtitle")}</p></div>
@@ -422,7 +430,7 @@ function App() {
     if (!supabase) return;
     setAuthBusy(true); setAuthMessage("");
     const result = authMode === "signup"
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/` } })
       : await supabase.auth.signInWithPassword({ email, password });
     setAuthBusy(false);
     if (result.error) setAuthMessage(result.error.message);
