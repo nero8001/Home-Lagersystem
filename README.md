@@ -1,6 +1,6 @@
 # Lagerprogramm für Zuhause
 
-Eine responsive Lagerverwaltung für den privaten Haushalt. Dieses Repository enthält den Web-App-Grundstand (v0.1.1).
+Eine responsive Lagerverwaltung für den privaten Haushalt. Dieses Repository enthält den Web-App-Grundstand (v0.1.2).
 
 ## Funktionen im aktuellen Grundstand
 
@@ -57,8 +57,13 @@ Bis die Supabase-Variablen gesetzt sind, verwendet die App den lokalen Demomodus
 
 React, TypeScript, Vite, Lucide React und Supabase.
 
-## Änderungen in v0.1.1
+## Änderungen in v0.1.2
 
 - Lagerort-Anzeige in der Artikeltabelle korrigiert.
 - Kategorien werden jetzt über mehrere Verschachtelungsebenen dargestellt.
 - Kategorien können umbenannt und – sofern leer – gelöscht werden.
+
+## Änderungen in v0.1.2
+
+- Kategorienbaum mit auf- und zuklappbaren Unterkategorien ergänzt.
+- Funktionen zum vollständigen Auf- und Zuklappen aller Kategorien hinzugefügt.

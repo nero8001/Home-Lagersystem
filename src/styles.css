@@ -120,8 +120,16 @@ tbody tr:last-child td{border-bottom:0}
 .category-list-panel{min-height:260px}
  .category-tree{display:grid;gap:2px}
 .category-tree-node{min-width:0}
+.category-children{min-width:0}
 .category-entry{display:flex;align-items:center;gap:10px;padding:9px 5px;min-height:43px;border-radius:8px;transition:background .15s}
 .category-entry:hover{background:var(--soft)}
+.tree-toggle,.tree-toggle-placeholder{width:22px;height:27px;flex:0 0 22px;display:grid;place-items:center}
+.tree-toggle{border:0;border-radius:6px;background:transparent;color:var(--muted);padding:0}
+.tree-toggle:hover{background:var(--panel);color:var(--teal)}
+.tree-toggle-placeholder{visibility:hidden}
+.tree-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tree-tool-button{border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:6px;padding:6px 8px;font-size:9px;font-weight:600}
+.tree-tool-button:hover{border-color:var(--teal);color:var(--teal)}
 .category-entry strong{font-size:11px;flex:1;min-width:0}
 .category-entry.nested strong{font-weight:500}
 .category-item-count{font-size:9px;color:var(--muted);white-space:nowrap}

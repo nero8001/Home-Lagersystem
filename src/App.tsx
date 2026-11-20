@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
-  Archive, Boxes, ChevronDown, CircleAlert,
+  Archive, Boxes, ChevronDown, ChevronRight, CircleAlert,
   LayoutDashboard, Languages, MapPin, Menu, Moon, PackagePlus, Pencil,
   Plus, Search, Settings, ShoppingCart, Sun, Trash2, X, Minus, Check,
   Layers3, ArrowUpRight, Package
@@ -31,6 +31,9 @@ function App() {
   const [language, setLanguage] = useState<Language>(() => readStored("lager-language", "de"));
   const [items, setItems] = useState<InventoryItem[]>(() => readStored("lager-items", demoItems));
   const [categories, setCategories] = useState<Category[]>(() => readStored("lager-categories", demoCategories));
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() =>
+    new Set(readStored<Category[]>("lager-categories", demoCategories).map(category => category.id))
+  );
   const [page, setPage] = useState<Page>("dashboard");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -107,7 +110,11 @@ function App() {
   function addCategory(event: FormEvent) {
     event.preventDefault();
     if (!categoryName.trim()) return;
-    setCategories(current => [...current, { id: crypto.randomUUID(), name: categoryName.trim(), parentId: parentCategory || null }]);
+    const newCategory: Category = { id: crypto.randomUUID(), name: categoryName.trim(), parentId: parentCategory || null };
+    setCategories(current => [...current, newCategory]);
+    if (newCategory.parentId) {
+      setExpandedCategoryIds(current => new Set([...current, newCategory.parentId!]));
+    }
     setCategoryName("");
     setParentCategory("");
   }
@@ -122,12 +129,30 @@ function App() {
     return items.filter(item => item.categoryId !== null && relatedIds.includes(item.categoryId)).length;
   }
 
+  function toggleCategory(categoryId: string) {
+    setExpandedCategoryIds(current => {
+      const next = new Set(current);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
+    });
+  }
+
   function renderCategoryTree(category: Category, depth = 0): ReactNode {
     const children = categories.filter(child => child.parentId === category.id);
+    const hasChildren = children.length > 0;
+    const expanded = expandedCategoryIds.has(category.id);
     const count = getCategoryItemCount(category.id);
     return (
       <div className="category-tree-node" key={category.id}>
         <div className={`category-entry ${depth > 0 ? "nested" : ""}`} style={{ paddingLeft: `${5 + depth * 25}px` }}>
+          {hasChildren ? (
+            <button type="button" className="tree-toggle" onClick={() => toggleCategory(category.id)}
+              aria-label={expanded ? (language === "de" ? `${category.name} zuklappen` : `Collapse ${category.name}`) : (language === "de" ? `${category.name} aufklappen` : `Expand ${category.name}`)}
+              aria-expanded={expanded} title={expanded ? (language === "de" ? "Zuklappen" : "Collapse") : (language === "de" ? "Aufklappen" : "Expand")}>
+              {expanded ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}
+            </button>
+          ) : <span className="tree-toggle-placeholder"/>}
           {depth === 0
             ? <div className="category-icon"><Archive size={17}/></div>
             : <span className="tree-line" aria-hidden="true">↳</span>}
@@ -138,7 +163,7 @@ function App() {
             <button type="button" onClick={() => removeCategory(category)} aria-label={language === "de" ? `Kategorie ${category.name} löschen` : `Delete category ${category.name}`} title={tr("delete")}><Trash2 size={14}/></button>
           </div>
         </div>
-        {children.map(child => renderCategoryTree(child, depth + 1))}
+        {hasChildren && expanded && <div className="category-children">{children.map(child => renderCategoryTree(child, depth + 1))}</div>}
       </div>
     );
   }
@@ -256,7 +281,7 @@ function App() {
             <div className="page-heading"><div><div className="eyebrow">{tr("categories").toUpperCase()}</div><h1>{tr("categories")}</h1><p>{language === "de" ? "Organisiere dein Lager so, wie es zu deinem Zuhause passt." : "Organize your inventory to fit your home."}</p></div></div>
             <div className="category-layout">
               <section className="panel category-form-panel"><h2>{tr("newCategory")}</h2><form onSubmit={addCategory} className="stack-form"><label>{tr("name")}<input required value={categoryName} onChange={e => setCategoryName(e.target.value)} placeholder={language === "de" ? "z. B. Werkstatt" : "e.g. Workshop"}/></label><label>{tr("parentCategory")}<select value={parentCategory} onChange={e => setParentCategory(e.target.value)}><option value="">{tr("rootCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><button className="primary-button" type="submit"><Plus size={17}/>{tr("addCategory")}</button></form></section>
-              <section className="panel category-list-panel"><div className="panel-heading"><div><h2>{tr("categoryManager")}</h2><p>{categories.length} {tr("categoriesCount").toLowerCase()}</p></div><Layers3 size={20} className="muted-icon"/></div><div className="category-tree">{categories.filter(category => !category.parentId || !categories.some(parent => parent.id === category.parentId)).map(category => renderCategoryTree(category))}</div></section>
+              <section className="panel category-list-panel"><div className="panel-heading"><div><h2>{tr("categoryManager")}</h2><p>{categories.length} {tr("categoriesCount").toLowerCase()}</p></div><div className="tree-toolbar"><button type="button" className="tree-tool-button" onClick={() => setExpandedCategoryIds(new Set(categories.map(category => category.id)))}>{language === "de" ? "Alle aufklappen" : "Expand all"}</button><button type="button" className="tree-tool-button" onClick={() => setExpandedCategoryIds(new Set())}>{language === "de" ? "Alle zuklappen" : "Collapse all"}</button></div></div><div className="category-tree">{categories.filter(category => !category.parentId || !categories.some(parent => parent.id === category.parentId)).map(category => renderCategoryTree(category))}</div></section>
             </div>
           </>}
 
