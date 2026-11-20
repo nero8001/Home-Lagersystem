@@ -10,6 +10,7 @@ import { demoCategories, demoItems } from "./data/demo";
 import { t } from "./i18n";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { User } from "@supabase/supabase-js";
+import { searchProducts, type ProductHit } from "./lib/productSearch";
 
 type Page = "dashboard" | "inventory" | "categories" | "shopping" | "settings";
 type ItemForm = Omit<InventoryItem, "id" | "updatedAt" | "quantity" | "minQuantity"> & { quantity: string; minQuantity: string };
@@ -48,6 +49,11 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [parentCategory, setParentCategory] = useState("");
   const [dark, setDark] = useState(() => readStored("lager-dark", false));
   const [mobileNav, setMobileNav] = useState(false);
+  const [showProductImages, setShowProductImages] = useState(() => readStored("lager-show-product-images", true));
+  const [productQuery, setProductQuery] = useState("");
+  const [productHits, setProductHits] = useState<ProductHit[]>([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productError, setProductError] = useState("");
 
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
   const handleBarcodeDetected = useCallback((value: string) => { setForm(current => ({ ...current, barcode: value })); setScannerOpen(false); }, []);
@@ -56,6 +62,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   useEffect(() => localStorage.setItem("lager-categories", JSON.stringify(categories)), [categories]);
   useEffect(() => localStorage.setItem("lager-language", JSON.stringify(language)), [language]);
   useEffect(() => localStorage.setItem("lager-dark", JSON.stringify(dark)), [dark]);
+  useEffect(() => localStorage.setItem("lager-show-product-images", JSON.stringify(showProductImages)), [showProductImages]);
 
   // Load the selected household's cloud data and listen for changes from other devices.
   useEffect(() => {
@@ -136,6 +143,24 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     const { id: _id, updatedAt: _updatedAt, ...values } = item;
     setForm({ ...values, quantity: String(values.quantity), minQuantity: String(values.minQuantity) });
     setModalOpen(true);
+  }
+
+  async function runProductSearch() {
+    const query = productQuery.trim() || form.barcode.trim() || form.name.trim();
+    if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
+    setProductLoading(true); setProductError(""); setProductHits([]);
+    try {
+      const result = await searchProducts(query);
+      setProductHits(result.hits);
+      if (result.hits.length === 0) setProductError(language === "de" ? "Keine Produkte gefunden. Du kannst den Artikel weiterhin manuell erfassen." : "No products found. You can still enter the item manually.");
+      else if (result.errors.length) setProductError(language === "de" ? "Einige Datenbanken waren nicht erreichbar: " + result.errors.join(" · ") : "Some databases could not be reached: " + result.errors.join(" · "));
+    } catch (error) { setProductError(error instanceof Error ? error.message : "Produktsuche fehlgeschlagen."); }
+    finally { setProductLoading(false); }
+  }
+
+  function chooseProduct(hit: ProductHit) {
+    setForm(current => ({ ...current, name: hit.name, description: [hit.brand, hit.quantity].filter(Boolean).join(" · ") || hit.description, barcode: hit.barcode || current.barcode }));
+    setProductHits([]); setProductError(""); setProductQuery("");
   }
 
   function saveItem(event: FormEvent) {
@@ -358,11 +383,11 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
 
           {page === "shopping" && <section className="panel coming-panel"><div className="coming-icon"><ShoppingCart size={27}/></div><h1>{tr("shopping")}</h1><p>{tr("shoppingHint")}</p><span className="coming-tag">{tr("comingSoon")}</span></section>}
 
-          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section></>}
+          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Produktbilder</strong><small>{language === "de" ? "Produktbilder in Suche und Vorschau anzeigen" : "Show product images in search and previews"}</small></div><label className="switch-control"><input type="checkbox" checked={showProductImages} onChange={e => setShowProductImages(e.target.checked)}/><span className="switch-slider"/></label></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section></>}
         </div>
       </main>
 
-      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: e.target.value })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<div className="barcode-entry"><input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/><button type="button" className="secondary-button barcode-scan-button" onClick={() => setScannerOpen(true)}><ScanBarcode size={17}/>{language === "de" ? "Scannen" : "Scan"}</button></div></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
+      {modalOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModalOpen(false); }}><form className="modal" onSubmit={saveItem}><div className="modal-header"><div><div className="eyebrow">{editingId ? tr("edit") : tr("addItem")}</div><h2>{editingId ? tr("edit") : tr("addItem")}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)}><X size={20}/></button></div><div className="form-grid"><div className="wide product-lookup"><label>{language === "de" ? "Produkt finden (Barcode oder Name)" : "Find product (barcode or name)"}<div className="product-search-row"><input value={productQuery} onChange={e => setProductQuery(e.target.value)} placeholder={language === "de" ? "Barcode oder z. B. Shampoo, PLA Basic …" : "Barcode or e.g. shampoo, PLA Basic …"}/><button type="button" className="secondary-button" onClick={runProductSearch} disabled={productLoading}><Search size={16}/>{productLoading ? (language === "de" ? "Suche …" : "Searching …") : (language === "de" ? "Suchen" : "Search")}</button></div></label>{productError && <p className="product-search-message">{productError}</p>}{productHits.length > 0 && <div className="product-results">{productHits.map(hit => <button type="button" className="product-result" key={hit.id} onClick={() => chooseProduct(hit)}>{showProductImages && hit.image ? <img src={hit.image} alt="" loading="lazy"/> : <span className="product-result-placeholder"><Package size={18}/></span>}<span className="product-result-info"><strong>{hit.name}</strong><small>{[hit.brand, hit.quantity, hit.source].filter(Boolean).join(" · ")}</small>{hit.barcode && <small>EAN: {hit.barcode}</small>}</span><Check size={16}/></button>)}</div>}</div><label className="wide">{tr("name")} *<input required autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={language === "de" ? "z. B. Küchenrolle" : "e.g. Paper towels"}/></label><label>{tr("category")}<select value={form.categoryId ?? ""} onChange={e => setForm({ ...form, categoryId: e.target.value || null })}><option value="">{tr("chooseCategory")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></label><label>{tr("quantity")} ({tr("pieces")})<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label>{tr("minimum")}<input type="number" min="0" step="1" value={form.minQuantity} onChange={e => setForm({ ...form, minQuantity: e.target.value })}/></label><label>{tr("location")}<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder={language === "de" ? "z. B. Kellerregal" : "e.g. Basement shelf"}/></label><label className="wide">{tr("description")}<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}/></label><label className="wide">{tr("barcode")}<div className="barcode-entry"><input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} placeholder="EAN / UPC"/><button type="button" className="secondary-button barcode-scan-button" onClick={() => setScannerOpen(true)}><ScanBarcode size={17}/>{language === "de" ? "Scannen" : "Scan"}</button></div></label><label className="wide">{tr("notes")}<textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>{tr("cancel")}</button><button className="primary-button" type="submit"><Check size={17}/>{editingId ? tr("save") : tr("create")}</button></div></form></div>}
       {scannerOpen && <BarcodeScanner language={language} onClose={() => setScannerOpen(false)} onDetected={handleBarcodeDetected}/>}
     </div>
   );
