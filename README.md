@@ -1,69 +1,63 @@
 # Lagerprogramm für Zuhause
 
-Eine responsive Lagerverwaltung für den privaten Haushalt. Dieses Repository enthält den Web-App-Grundstand (v0.1.2).
+Private, mehrbenutzerfähige Lagerverwaltung als responsive Web-App. Aktueller Entwicklungsstand: **v0.2.0**.
 
-## Funktionen im aktuellen Grundstand
-
-- Dashboard mit Bestandsübersicht und Warnungen
-- Artikel hinzufügen, bearbeiten und löschen
-- Mengen über `+`, `−` oder direkte Eingabe ändern
-- Beliebig tief verschachtelte Kategorien und Unterkategorien
-- Kategorien umbenennen und löschen (Löschen nur ohne zugeordnete Artikel/Unterkategorien)
-- Suche und Kategorie-Filter
-- Mindestbestand und Lagerort
-- Deutsch/Englisch-Umschaltung
-- Lokaler Demomodus mit Speicherung im Browser
-- Vorbereiteter Supabase-Client und SQL-Grundschema
+## v0.2.0
+- Supabase Auth: Registrierung, Anmeldung, Abmeldung und Passwort-Reset
+- Haushaltsmodell mit Owner-/Admin-/Member-Rollen als Grundlage für gemeinsames Verwalten
+- Kategorien und Artikel werden haushaltsbezogen in Supabase gespeichert
+- Live-Aktualisierung über Supabase Realtime
+- Row Level Security (RLS) schützt Haushaltsdaten
 
 ## Lokal starten
-
-Voraussetzung: Node.js (empfohlen: aktuelle LTS-Version).
 
 ```bash
 npm install
 npm run dev
 ```
 
-Die im Terminal angezeigte lokale Adresse im Browser öffnen.
+## Supabase einrichten
 
-## Supabase verbinden
+**Wichtig:** Verwende ein neues, ausschließlich für dieses Lagerprogramm angelegtes Supabase-Projekt. Das SQL-Schema ist für eine frische Datenbank gedacht und nicht als Upgrade des alten Demo-Schemas.
 
-1. Ein neues Supabase-Projekt für dieses Lagerprogramm anlegen (getrennt vom Pokémon Champions Companion).
-2. `supabase/schema.sql` im SQL Editor des neuen Projekts ausführen.
-3. `.env.example` in `.env.local` umbenennen.
-4. `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` aus den Supabase-Projekteinstellungen eintragen.
-5. Entwicklungsserver neu starten.
+1. Erstelle ein Supabase-Projekt.
+2. Öffne den SQL Editor und führe `supabase/schema.sql` vollständig aus.
+3. Öffne Authentication → URL Configuration.
+4. Setze Site URL auf `https://home-lagersystem.pages.dev` (später auf die eigene Lagerprogramm-Domain ändern).
+5. Füge unter Redirect URLs auch `https://home-lagersystem.pages.dev/**` hinzu.
+6. Öffne Project Settings → API und kopiere Project URL sowie den öffentlichen Publishable Key (oder legacy anon key).
+7. Trage beide Werte in Cloudflare unter Workers & Pages → home-lagersystem → Settings → Environment variables ein:
+   - `VITE_SUPABASE_URL` = Project URL
+   - `VITE_SUPABASE_ANON_KEY` = öffentlicher Publishable-/anon-Key
+8. Hinterlege die Variablen mindestens für Production und löse anschließend ein neues Deployment aus.
 
-Bis die Supabase-Variablen gesetzt sind, verwendet die App den lokalen Demomodus. Im aktuellen Stand werden die Lagerdaten lokal gespeichert. Die Supabase-Tabellen und Sicherheitsrichtlinien sind vorbereitet; die echte Anmeldung und Cloud-Synchronisierung folgen als nächster Entwicklungsschritt.
+**Niemals** den `service_role`-Key oder einen Secret Key in die Web-App oder in GitHub eintragen. RLS ist aktiv und muss aktiviert bleiben.
 
-**Wichtig:** Niemals den `service_role`-Schlüssel in eine Web-App oder in GitHub eintragen. Nur den öffentlichen `anon`/publishable Key verwenden. RLS bleibt aktiviert.
+### E-Mail-Bestätigung
 
-## GitHub / Cloudflare Pages
+Die Registrierung kann eine E-Mail-Bestätigung verlangen. Für den Produktivbetrieb sollte in Supabase ein passender SMTP-Anbieter eingerichtet werden. Ohne eigene SMTP-Konfiguration können die standardmäßigen Auth-E-Mail-Limits greifen.
 
+## Datenmodell
+
+- `households`: eigenständige Haushalte
+- `household_members`: Benutzerzuordnung und Rolle (`owner`, `admin`, `member`)
+- `categories`: verschachtelte Kategorien je Haushalt
+- `inventory_items`: Artikel je Haushalt
+
+Ein Benutzer kann in mehreren Haushalten Mitglied sein. Die aktuelle Oberfläche erstellt beim ersten Login einen Haushalt. Einladungsverwaltung und Haushaltswechsel folgen in einem späteren Schritt.
+
+## Cloudflare Pages
+
+- Framework: React (Vite)
 - Build command: `npm run build`
 - Build output directory: `dist`
-- Framework preset: Vite
-- Environment variables: dieselben beiden `VITE_SUPABASE_*` Variablen wie oben
+- Production branch: `main`
 
-## Geplante nächste Schritte
+Cloudflare baut automatisch nach jedem Commit auf dem Production-Branch.
 
-1. Supabase Auth mit Registrierung, Anmeldung und Passwort-zurücksetzen
-2. Datenzugriff und Synchronisierung mit Row Level Security
-3. Barcode-Scanner und Produktdatenquellen
-4. Einkaufsliste und PWA-Installation
-5. Android- und Windows-Pakete
+## Nächste Schritte
 
-## Technologie
-
-React, TypeScript, Vite, Lucide React und Supabase.
-
-## Änderungen in v0.1.2
-
-- Lagerort-Anzeige in der Artikeltabelle korrigiert.
-- Kategorien werden jetzt über mehrere Verschachtelungsebenen dargestellt.
-- Kategorien können umbenannt und – sofern leer – gelöscht werden.
-
-## Änderungen in v0.1.2
-
-- Kategorienbaum mit auf- und zuklappbaren Unterkategorien ergänzt.
-- Funktionen zum vollständigen Auf- und Zuklappen aller Kategorien hinzugefügt.
+1. Haushalts-Einladungen und Rollenverwaltung in der Oberfläche
+2. Barcode-Scanner und Produktsuche
+3. Einkaufsliste
+4. PWA sowie Android-/Windows-Pakete

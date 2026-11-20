@@ -8,7 +8,8 @@ import {
 import type { Category, InventoryItem, Language } from "./types";
 import { demoCategories, demoItems } from "./data/demo";
 import { t } from "./i18n";
-import { isSupabaseConfigured } from "./lib/supabase";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 type Page = "dashboard" | "inventory" | "categories" | "shopping" | "settings";
 type ItemForm = Omit<InventoryItem, "id" | "updatedAt">;
@@ -27,7 +28,7 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
-function App() {
+function InventoryApp({ user, householdId, onSignOut }: { user: User; householdId: string; onSignOut: () => void }) {
   const [language, setLanguage] = useState<Language>(() => readStored("lager-language", "de"));
   const [items, setItems] = useState<InventoryItem[]>(() => readStored("lager-items", demoItems));
   const [categories, setCategories] = useState<Category[]>(() => readStored("lager-categories", demoCategories));
@@ -51,6 +52,54 @@ function App() {
   useEffect(() => localStorage.setItem("lager-categories", JSON.stringify(categories)), [categories]);
   useEffect(() => localStorage.setItem("lager-language", JSON.stringify(language)), [language]);
   useEffect(() => localStorage.setItem("lager-dark", JSON.stringify(dark)), [dark]);
+
+  // Load the selected household's cloud data and listen for changes from other devices.
+  useEffect(() => {
+    let active = true;
+    if (!supabase) return;
+    const loadHouseholdData = async () => {
+      const [categoryResult, itemResult] = await Promise.all([
+        supabase.from("categories").select("id,name,parent_id").eq("household_id", householdId).order("name"),
+        supabase.from("inventory_items").select("id,name,description,category_id,quantity,unit,min_quantity,location,barcode,notes,updated_at").eq("household_id", householdId).order("updated_at", { ascending: false }),
+      ]);
+      if (!active) return;
+      if (categoryResult.error || itemResult.error) {
+        console.error("Supabase load error", categoryResult.error ?? itemResult.error);
+        window.alert(language === "de" ? "Die Lagerdaten konnten nicht geladen werden. Bitte Supabase-Schema und Berechtigungen prüfen." : "Could not load inventory data. Please check the Supabase schema and permissions.");
+        return;
+      }
+      setCategories((categoryResult.data ?? []).map(row => ({ id: row.id, name: row.name, parentId: row.parent_id })));
+      setExpandedCategoryIds(new Set((categoryResult.data ?? []).map(row => row.id)));
+      setItems((itemResult.data ?? []).map(row => ({
+        id: row.id, name: row.name, description: row.description ?? "", categoryId: row.category_id,
+        quantity: Number(row.quantity), unit: row.unit, minQuantity: Number(row.min_quantity),
+        location: row.location ?? "", barcode: row.barcode ?? "", notes: row.notes ?? "", updatedAt: row.updated_at,
+      })));
+    };
+    void loadHouseholdData();
+    const channel = supabase.channel(`household-${householdId}-inventory`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories", filter: `household_id=eq.${householdId}` }, () => { void loadHouseholdData(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "inventory_items", filter: `household_id=eq.${householdId}` }, () => { void loadHouseholdData(); })
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [householdId, language]);
+
+  async function persistItem(item: InventoryItem) {
+    if (!supabase) return;
+    const { error } = await supabase.from("inventory_items").upsert({
+      id: item.id, household_id: householdId, name: item.name, description: item.description || null,
+      category_id: item.categoryId, quantity: item.quantity, unit: item.unit,
+      min_quantity: item.minQuantity, location: item.location || null, barcode: item.barcode || null,
+      notes: item.notes || null, updated_at: new Date().toISOString(),
+    });
+    if (error) { console.error(error); window.alert(language === "de" ? "Artikel konnte nicht synchronisiert werden: " + error.message : "Could not sync item: " + error.message); }
+  }
+
+  async function persistCategory(category: Category) {
+    if (!supabase) return;
+    const { error } = await supabase.from("categories").upsert({ id: category.id, household_id: householdId, name: category.name, parent_id: category.parentId });
+    if (error) { console.error(error); window.alert(language === "de" ? "Kategorie konnte nicht synchronisiert werden: " + error.message : "Could not sync category: " + error.message); }
+  }
 
   const lowItems = items.filter(item => item.quantity <= item.minQuantity);
   const totalPieces = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -83,28 +132,35 @@ function App() {
     event.preventDefault();
     if (!form.name.trim()) return;
     const clean = { ...form, name: form.name.trim(), quantity: Math.max(0, Number(form.quantity) || 0), minQuantity: Math.max(0, Number(form.minQuantity) || 0) };
-    if (editingId) {
-      setItems(current => current.map(item => item.id === editingId ? { ...item, ...clean, updatedAt: new Date().toISOString() } : item));
-    } else {
-      setItems(current => [{ ...clean, id: crypto.randomUUID(), updatedAt: new Date().toISOString() }, ...current]);
-    }
+    const savedItem: InventoryItem = { ...clean, id: editingId ?? crypto.randomUUID(), updatedAt: new Date().toISOString() };
+    setItems(current => editingId ? current.map(item => item.id === editingId ? savedItem : item) : [savedItem, ...current]);
+    void persistItem(savedItem);
     setModalOpen(false);
   }
 
   function changeQuantity(id: string, delta: number) {
-    setItems(current => current.map(item => item.id === id
-      ? { ...item, quantity: Math.max(0, item.quantity + delta), updatedAt: new Date().toISOString() }
-      : item));
+    const current = items.find(item => item.id === id);
+    if (!current) return;
+    const updated = { ...current, quantity: Math.max(0, current.quantity + delta), updatedAt: new Date().toISOString() };
+    setItems(list => list.map(item => item.id === id ? updated : item));
+    void persistItem(updated);
   }
 
   function setQuantity(id: string, value: number) {
-    setItems(current => current.map(item => item.id === id
-      ? { ...item, quantity: Math.max(0, Number.isFinite(value) ? value : 0), updatedAt: new Date().toISOString() }
-      : item));
+    const current = items.find(item => item.id === id);
+    if (!current) return;
+    const updated = { ...current, quantity: Math.max(0, Number.isFinite(value) ? value : 0), updatedAt: new Date().toISOString() };
+    setItems(list => list.map(item => item.id === id ? updated : item));
+    void persistItem(updated);
   }
 
-  function deleteItem(id: string) {
-    if (window.confirm(tr("deleteConfirm"))) setItems(current => current.filter(item => item.id !== id));
+  async function deleteItem(id: string) {
+    if (!window.confirm(tr("deleteConfirm"))) return;
+    setItems(current => current.filter(item => item.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from("inventory_items").delete().eq("id", id).eq("household_id", householdId);
+      if (error) window.alert(error.message);
+    }
   }
 
   function addCategory(event: FormEvent) {
@@ -112,6 +168,7 @@ function App() {
     if (!categoryName.trim()) return;
     const newCategory: Category = { id: crypto.randomUUID(), name: categoryName.trim(), parentId: parentCategory || null };
     setCategories(current => [...current, newCategory]);
+    void persistCategory(newCategory);
     if (newCategory.parentId) {
       setExpandedCategoryIds(current => new Set([...current, newCategory.parentId!]));
     }
@@ -171,7 +228,9 @@ function App() {
   function renameCategory(category: Category) {
     const nextName = window.prompt(language === "de" ? "Neuer Kategoriename:" : "New category name:", category.name);
     if (nextName === null || !nextName.trim()) return;
-    setCategories(current => current.map(entry => entry.id === category.id ? { ...entry, name: nextName.trim() } : entry));
+    const updated = { ...category, name: nextName.trim() };
+    setCategories(current => current.map(entry => entry.id === category.id ? updated : entry));
+    void persistCategory(updated);
   }
 
   function removeCategory(category: Category) {
@@ -185,6 +244,7 @@ function App() {
     }
     if (window.confirm(language === "de" ? `Kategorie „${category.name}“ wirklich löschen?` : `Delete category “${category.name}”?`)) {
       setCategories(current => current.filter(entry => entry.id !== category.id));
+      if (supabase) void supabase.from("categories").delete().eq("id", category.id).eq("household_id", householdId);
     }
   }
 
@@ -226,7 +286,7 @@ function App() {
             <p>Behalte deine Vorräte und wichtigen Dinge im Blick.</p>
           </div>
           <button className={`nav-link ${page === "settings" ? "active" : ""}`} onClick={() => goTo("settings")}><Settings size={18}/><span>{tr("settings")}</span></button>
-          <div className="profile-row"><div className="avatar">L</div><div><strong>{tr("welcome")}</strong><small>{isSupabaseConfigured ? "Supabase vorbereitet" : tr("demo")}</small></div><ChevronDown size={16}/></div>
+          <div className="profile-row"><div className="avatar">{(user.email ?? "U").slice(0,1).toUpperCase()}</div><div><strong>{user.email ?? tr("welcome")}</strong><small>{language === "de" ? "Synchronisiert" : "Synced"}</small></div><button className="signout-mini" onClick={onSignOut}>{language === "de" ? "Abmelden" : "Sign out"}</button></div>
         </div>
       </aside>
 
@@ -237,7 +297,7 @@ function App() {
           <button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Menü öffnen"><Menu size={20}/></button>
           <div className="breadcrumb">LagerZuhause <span>/</span> {navItems.find(n => n.id === page)?.label ?? tr("settings")}</div>
           <div className="top-actions">
-            <span className="sync-status"><span/> {isSupabaseConfigured ? "Backend bereit" : tr("demo")}</span>
+            <span className="sync-status"><span/> {language === "de" ? "Cloud synchronisiert" : "Cloud synced"}</span>
             <button className="icon-button" onClick={() => setLanguage(language === "de" ? "en" : "de")} title={tr("language")}><Languages size={18}/><small>{language.toUpperCase()}</small></button>
             <button className="icon-button" onClick={() => setDark(!dark)} title="Design wechseln">{dark ? <Sun size={18}/> : <Moon size={18}/>}</button>
             <div className="top-avatar">L</div>
@@ -287,7 +347,7 @@ function App() {
 
           {page === "shopping" && <section className="panel coming-panel"><div className="coming-icon"><ShoppingCart size={27}/></div><h1>{tr("shopping")}</h1><p>{tr("shoppingHint")}</p><span className="coming-tag">{tr("comingSoon")}</span></section>}
 
-          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Supabase</strong><small>{isSupabaseConfigured ? "Projektvariablen erkannt – Cloud-Sync folgt." : "Noch nicht verbunden. Lokaler Demomodus ist aktiv."}</small></div><span className={`connection-pill ${isSupabaseConfigured ? "connected" : ""}`}>{isSupabaseConfigured ? "Configured" : "Demo"}</span></div></section></>}
+          {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section></>}
         </div>
       </main>
 
@@ -315,3 +375,82 @@ function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, c
 }
 
 export default App;
+
+
+function App() {
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [needsHousehold, setNeedsHousehold] = useState(false);
+  const [newHouseholdName, setNewHouseholdName] = useState("Mein Zuhause");
+
+  useEffect(() => {
+    if (!supabase) { setLoading(false); return; }
+    supabase.auth.getSession().then(({ data }) => setSessionUser(data.session?.user ?? null)).finally(() => setLoading(false));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setSessionUser(session?.user ?? null));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!supabase || !sessionUser) { setHouseholdId(null); setNeedsHousehold(false); return; }
+    (async () => {
+      const { data, error } = await supabase.from("household_members").select("household_id, households(id,name)").eq("user_id", sessionUser.id).limit(1).maybeSingle();
+      if (!active) return;
+      if (error) { setAuthMessage(error.message); return; }
+      if (data?.household_id) {
+        setHouseholdId(data.household_id);
+        setNeedsHousehold(false);
+        const household = Array.isArray(data.households) ? data.households[0] : data.households;
+        if (household?.name) setNewHouseholdName(household.name);
+      } else {
+        setHouseholdId(null);
+        setNeedsHousehold(true);
+      }
+    })();
+    return () => { active = false; };
+  }, [sessionUser]);
+
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+    setAuthBusy(true); setAuthMessage("");
+    const result = authMode === "signup"
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+    setAuthBusy(false);
+    if (result.error) setAuthMessage(result.error.message);
+    else if (authMode === "signup" && !result.data.session) setAuthMessage("Registrierung erfolgreich. Bitte bestätige deine E-Mail-Adresse und melde dich anschließend an.");
+  }
+
+  async function createHousehold(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase || !newHouseholdName.trim()) return;
+    setAuthBusy(true); setAuthMessage("");
+    const { data, error } = await supabase.rpc("create_household", { household_name: newHouseholdName.trim() });
+    setAuthBusy(false);
+    if (error) setAuthMessage(error.message);
+    else { setHouseholdId(data as string); setNeedsHousehold(false); }
+  }
+
+  async function resetPassword() {
+    if (!supabase || !email.trim()) { setAuthMessage("Bitte gib zuerst deine E-Mail-Adresse ein."); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setAuthMessage(error ? error.message : "Wir haben dir einen Link zum Zurücksetzen des Passworts geschickt.");
+  }
+
+  async function signOut() { await supabase?.auth.signOut(); setHouseholdId(null); }
+
+  if (!isSupabaseConfigured || !supabase) {
+    return <div className="auth-screen"><div className="auth-card"><div className="brand-mark auth-mark"><Boxes size={25}/></div><h1>Supabase noch nicht verbunden</h1><p>Trage zuerst die Supabase-Projekt-URL und den öffentlichen Publishable-/Anon-Key als Cloudflare-Environment-Variablen ein. Danach erscheint hier die Anmeldung.</p></div></div>;
+  }
+  if (loading) return <div className="auth-screen"><div className="auth-card">Verbindung wird hergestellt …</div></div>;
+  if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"/></label><label>Passwort<input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} autoComplete={authMode === "login" ? "current-password" : "new-password"}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button><button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button><div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthMessage(""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
+  if (needsHousehold || !householdId) return <div className="auth-screen"><form className="auth-card" onSubmit={createHousehold}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">FAST GESCHAFFT</div><h1>Dein erster Haushalt</h1><p>Ein Haushalt enthält deine Kategorien und Artikel. Später kannst du weitere Personen einladen.</p><label>Name des Haushalts<input required value={newHouseholdName} onChange={e => setNewHouseholdName(e.target.value)}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Wird erstellt …" : "Haushalt erstellen"}</button><button type="button" className="auth-link" onClick={signOut}>Abmelden</button></form></div>;
+  return <InventoryApp user={sessionUser} householdId={householdId} onSignOut={signOut}/>;
+}
