@@ -1,10 +1,10 @@
 # Lagerprogramm für Zuhause
 
-Version **0.4.0**
+Version **0.4.1**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
-## v0.4.0 – Produktsuche und Produktbilder
+## v0.4.1 – Produktsuche und Produktbilder
 - Gemeinsame Produktsuche über Open Food Facts, Open Beauty Facts und Open Products Facts (Barcode- und Textsuche).
 - Kuratierte Produktvorlagen für BioTechUSA-Proteinpulver und Bambu-Lab-Filamente.
 - Produktbilder können über den dauerhaft gespeicherten Schalter „Produktbilder“ global ein- und ausgeblendet werden.
@@ -41,3 +41,9 @@ Das Supabase-Schema befindet sich unter `supabase/schema.sql`.
 - BioTechUSA und Bambu Lab: lokale Produktvorlagen zur Ergänzung durch manuelle Angaben.
 
 Open Products Facts ist experimentell und kann eine geringere Datenabdeckung haben. Die externen Produktdaten werden zur Suche live abgefragt; die Auswahl wird erst beim Speichern als eigener Lagerartikel in Supabase abgelegt. Die ODbL-/Attributionsbedingungen der Open-Facts-Datenbanken und die jeweiligen Bildlizenzen sind vor öffentlicher Weitergabe oder Aufbau eines abgeleiteten Gesamtkatalogs zu beachten. USDA FoodData Central ist in dieser Version noch nicht integriert, da dafür eine serverseitig zu verwaltende API-Konfiguration sinnvoll ist.
+
+
+## v0.4.1
+- Barcode direkt im Produktsuchfeld per Kamera scannen.
+- Gescannte Nummer wird als Suchbegriff und Artikel-Barcode übernommen.
+- Nicht gelistete Produkte lassen sich manuell benennen und mit einem Barcode speichern.
