@@ -29,7 +29,16 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
-function InventoryApp({ user, householdId, onSignOut }: { user: User; householdId: string; onSignOut: () => void }) {
+type HouseholdOption = { id: string; name: string; role: string };
+
+function InventoryApp({ user, householdId, householdName, households, onSwitchHousehold, onSignOut }: {
+  user: User;
+  householdId: string;
+  householdName: string;
+  households: HouseholdOption[];
+  onSwitchHousehold: (id: string) => void;
+  onSignOut: () => void;
+}) {
   const [language, setLanguage] = useState<Language>(() => readStored("lager-language", "de"));
   const [items, setItems] = useState<InventoryItem[]>(() => readStored("lager-items", demoItems));
   const [categories, setCategories] = useState<Category[]>(() => readStored("lager-categories", demoCategories));
@@ -62,6 +71,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   const [joinCode, setJoinCode] = useState("");
   useEffect(() => { const code = new URLSearchParams(window.location.search).get("invite"); if (code) { setJoinCode(code.toUpperCase()); setPage("settings"); } }, []);
   const [memberRows, setMemberRows] = useState<Array<{ user_id: string; role: string; email?: string }>>([]);
+
 
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
   const handleBarcodeDetected = useCallback((value: string) => {
@@ -161,7 +171,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     const link = `${window.location.origin}/?invite=${encodeURIComponent(code)}`;
     if (inviteEmail.trim()) {
       const { error: mailError } = await supabase.functions.invoke("send-household-invite", {
-        body: { email: inviteEmail.trim(), code, link, householdName: "Mein Zuhause" }
+        body: { email: inviteEmail.trim(), code, link, householdName }
       });
       setInviteMessage(mailError
         ? `Einladungscode erstellt. E-Mail-Versand noch nicht eingerichtet: ${mailError.message}`
@@ -172,10 +182,14 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   async function acceptInvite() {
     if (!supabase || !joinCode.trim()) return;
     setInviteBusy(true); setInviteMessage("");
-    const { error } = await supabase.rpc("accept_household_invite", { invite_code: joinCode.trim().toUpperCase() });
+    const { data, error } = await supabase.rpc("accept_household_invite", { invite_code: joinCode.trim().toUpperCase() });
     setInviteBusy(false);
     if (error) { setInviteMessage(error.message); return; }
-    setInviteMessage("Einladung angenommen. Bitte lade die Seite neu.");
+    if (typeof data !== "string") {
+      setInviteMessage("Einladung angenommen, aber die Haushalts-ID wurde nicht zurückgegeben.");
+      return;
+    }
+    localStorage.setItem("lager-selected-household", data);
     window.location.reload();
   }
 
@@ -215,13 +229,8 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   async function runProductSearch() {
     const query = productQuery.trim() || form.barcode.trim() || form.name.trim();
     if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
-
     const client = supabase;
-    if (!client) {
-      setProductError(language === "de" ? "Supabase ist nicht konfiguriert." : "Supabase is not configured.");
-      return;
-    }
-
+    if (!client) { setProductError(language === "de" ? "Supabase ist nicht konfiguriert." : "Supabase is not configured."); return; }
     setProductLoading(true); setProductError(""); setProductHits([]);
     try {
       const localQuery = client.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
@@ -240,7 +249,8 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     } catch (error) { setProductError(error instanceof Error ? error.message : "Produktsuche fehlgeschlagen."); }
     finally { setProductLoading(false); }
   }
-    function chooseProduct(hit: ProductHit) {
+
+  function chooseProduct(hit: ProductHit) {
     setForm(current => ({ ...current, name: hit.name, description: [hit.brand, hit.quantity].filter(Boolean).join(" · ") || hit.description, barcode: hit.barcode || current.barcode }));
     setProductHits([]); setProductError(""); setProductQuery("");
   }
@@ -388,6 +398,17 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
           <button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Menü schließen"><X size={19}/></button>
         </div>
         <div className="sidebar-scroll"><div className="workspace-label">WORKSPACE</div>
+        <div className="household-switcher">
+          <label htmlFor="household-switch">{language === "de" ? "AKTUELLER HAUSHALT" : "CURRENT HOUSEHOLD"}</label>
+          <div className="household-select-wrap">
+            <Boxes size={16}/>
+            <select id="household-switch" value={householdId} onChange={event => onSwitchHousehold(event.target.value)} aria-label={language === "de" ? "Haushalt wechseln" : "Switch household"}>
+              {households.map(household => <option key={household.id} value={household.id}>{household.name}</option>)}
+            </select>
+            <ChevronDown size={14}/>
+          </div>
+          <small>{households.length === 1 ? (language === "de" ? "1 Haushalt" : "1 household") : `${households.length} ${language === "de" ? "Haushalte" : "households"}`}</small>
+        </div>
         <nav>
           {navItems.map(({ id, label, icon: Icon }) => (
             <button key={id} className={`nav-link ${page === id ? "active" : ""}`} onClick={() => goTo(id)}>
@@ -420,7 +441,8 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
             <div className="top-avatar">L</div>
           </div>
         </header>
-                <div className="content">
+
+        <div className="content">
           {cloudStatus === "error" && <div className="cloud-error-banner" role="status"><strong>{language === "de" ? "Cloud-Daten konnten nicht geladen werden" : "Could not load cloud data"}</strong><span>{cloudError}</span><small>{language === "de" ? "Bitte Datenbankrechte und RLS-Richtlinien prüfen. Lokale Demodaten werden nicht als synchronisiert angezeigt." : "Please check database grants and RLS policies. Local demo data is not shown as synced."}</small></div>}
           {page === "dashboard" && <>
             <div className="page-heading">
@@ -465,7 +487,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
           {page === "shopping" && <section className="panel coming-panel"><div className="coming-icon"><ShoppingCart size={27}/></div><h1>{tr("shopping")}</h1><p>{tr("shoppingHint")}</p><span className="coming-tag">{tr("comingSoon")}</span></section>}
 
           {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Produktbilder</strong><small>{language === "de" ? "Produktbilder in Suche und Vorschau anzeigen" : "Show product images in search and previews"}</small></div><label className="switch-control"><input type="checkbox" checked={showProductImages} onChange={e => setShowProductImages(e.target.checked)}/><span className="switch-slider"/></label></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section>
-<section className="panel settings-panel household-panel"><h2>Mein Haushalt</h2><p>Mitglieder einladen und gemeinsam den Lagerbestand verwalten.</p><div className="member-list">{memberRows.map(member => <div className="setting-row" key={member.user_id}><div><strong>{member.user_id === user.id ? "Du" : "Haushaltsmitglied"}</strong><small>{member.user_id === user.id ? user.email : member.user_id}</small></div><span className="connection-pill">{member.role === "owner" ? "Besitzer" : member.role === "admin" ? "Administrator" : "Mitglied"}</span></div>)}</div>
+<section className="panel settings-panel household-panel"><h2>{householdName}</h2><p>{language === "de" ? "Aktueller Haushalt · Mitglieder einladen und gemeinsam den Lagerbestand verwalten." : "Current household · Invite members and manage inventory together."}</p><div className="member-list">{memberRows.map(member => <div className="setting-row" key={member.user_id}><div><strong>{member.user_id === user.id ? "Du" : "Haushaltsmitglied"}</strong><small>{member.user_id === user.id ? user.email : member.user_id}</small></div><span className="connection-pill">{member.role === "owner" ? "Besitzer" : member.role === "admin" ? "Administrator" : "Mitglied"}</span></div>)}</div>
 <div className="invite-box"><h3>Per E-Mail einladen</h3><label>E-Mail-Adresse<input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="name@beispiel.de"/></label><button className="primary-button" type="button" disabled={inviteBusy || !inviteEmail.trim()} onClick={() => void createInvite()}>{inviteBusy ? "Bitte warten …" : "Einladung per E-Mail senden"}</button></div>
 <div className="invite-box"><h3>Einladungscode erstellen</h3><p>Du kannst den Code auch persönlich weitergeben.</p><button className="secondary-button" type="button" disabled={inviteBusy} onClick={() => { setInviteEmail(""); void createInvite(); }}>Code erstellen</button>{inviteCode && <div className="invite-code"><strong>{inviteCode}</strong><button className="secondary-button" type="button" onClick={() => void copyInvite()}>Link kopieren</button></div>}</div>
 <div className="invite-box"><h3>Einladungscode einlösen</h3><label>Code<input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="ABCD-1234"/></label><button className="secondary-button" type="button" disabled={inviteBusy || !joinCode.trim()} onClick={() => void acceptInvite()}>Haushalt beitreten</button></div>{inviteMessage && <div className="auth-message">{inviteMessage}</div>}</section></>}
@@ -477,6 +499,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     </div>
   );
 }
+
 function BarcodeScanner({ language, onClose, onDetected }: { language: Language; onClose: () => void; onDetected: (value: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -537,29 +560,24 @@ function StatCard({ icon, label, value, detail, tone }: { icon: ReactNode; label
 function QuantityInput({ item, label, onCommit }: { item: InventoryItem; label: string; onCommit: (value: number) => void }) {
   const [value, setValue] = useState(String(item.quantity));
   useEffect(() => setValue(String(item.quantity)), [item.quantity]);
-  return <input aria-label={label} className="quantity-input" type="number" min="0" step="1" value={value} onChange={event => setValue(event.target.value)} onBlur={() => onCommit(Number(value))} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>;
+  return <input aria-label={label} type="number" min="0" step="1" value={value}
+    onChange={event => setValue(event.target.value)}
+    onBlur={() => { const next = Math.max(0, Number(value) || 0); setValue(String(next)); if (next !== item.quantity) onCommit(next); }}
+    onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>;
 }
 
 function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, compact = false }: {
-  items: InventoryItem[];
-  categories: Category[];
-  onEdit: (item: InventoryItem) => void;
-  onDelete: (id: string) => void;
-  onChange: (id: string, delta: number) => void;
-  onSet: (id: string, value: number) => void;
-  tr: (key: Parameters<typeof t>[1]) => string;
-  compact?: boolean;
+  items: InventoryItem[]; categories: Category[]; onEdit: (item: InventoryItem) => void;
+  onDelete: (id: string) => void; onChange: (id: string, delta: number) => void;
+  onSet: (id: string, value: number) => void; tr: (key: Parameters<typeof t>[1]) => string; compact?: boolean;
 }) {
-  function categoryName(id: string | null) {
-    return categories.find(category => category.id === id)?.name ?? "–";
+  const categoryLabel = (id: string | null) => categories.find(c => c.id === id)?.name ?? "–";
+  function status(item: InventoryItem) {
+    if (item.quantity === 0) return { label: tr("empty"), cls: "empty" };
+    if (item.quantity <= item.minQuantity) return { label: tr("low"), cls: "low" };
+    return { label: tr("inStock"), cls: "good" };
   }
-
-  return <div className="table-wrap"><table className="inventory-table"><thead><tr><th>{tr("name")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => {
-    const low = item.quantity <= item.minQuantity;
-    const state = low
-      ? { cls: "low", label: tr("lowStock") }
-      : { cls: "good", label: tr("inStock") };
-    return <tr key={item.id}><td><div className="item-name-cell"><div className="item-icon"><Package size={16}/></div><div><strong>{item.name}</strong>{item.description && <small>{item.description}</small>}</div></div></td>{!compact && <td className="category-cell">{categoryName(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><QuantityInput item={item} label={`${tr("quantity")} ${item.name}`} onCommit={value => onSet(item.id, value)}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
+  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><QuantityInput item={item} label={`${tr("quantity")} ${item.name}`} onCommit={value => onSet(item.id, value)}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
 }
 
 export default App;
@@ -568,6 +586,7 @@ export default App;
 function App() {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [households, setHouseholds] = useState<HouseholdOption[]>([]);
   const [email, setEmail] = useState(() => localStorage.getItem("lager-saved-email") ?? "");
   const [password, setPassword] = useState("");
   const [rememberEmail, setRememberEmail] = useState(() => Boolean(localStorage.getItem("lager-saved-email")));
@@ -588,16 +607,33 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    if (!supabase || !sessionUser) { setHouseholdId(null); setNeedsHousehold(false); return; }
+    if (!supabase || !sessionUser) {
+      setHouseholdId(null);
+      setHouseholds([]);
+      setNeedsHousehold(false);
+      return;
+    }
     (async () => {
-      const { data, error } = await supabase.from("household_members").select("household_id, households(id,name)").eq("user_id", sessionUser.id).limit(1).maybeSingle();
+      const { data, error } = await supabase
+        .from("household_members")
+        .select("household_id,role,households(id,name)")
+        .eq("user_id", sessionUser.id);
       if (!active) return;
       if (error) { setAuthMessage(error.message); return; }
-      if (data?.household_id) {
-        setHouseholdId(data.household_id);
+
+      const available: HouseholdOption[] = (data ?? []).flatMap(row => {
+        const related = Array.isArray(row.households) ? row.households[0] : row.households;
+        return related?.id ? [{ id: related.id, name: related.name ?? "Mein Haushalt", role: row.role }] : [];
+      });
+      setHouseholds(available);
+
+      if (available.length) {
+        const storedId = localStorage.getItem("lager-selected-household");
+        const selected = available.find(household => household.id === storedId) ?? available[0];
+        setHouseholdId(selected.id);
+        localStorage.setItem("lager-selected-household", selected.id);
+        setNewHouseholdName(selected.name);
         setNeedsHousehold(false);
-        const household = Array.isArray(data.households) ? data.households[0] : data.households;
-        if (household?.name) setNewHouseholdName(household.name);
       } else {
         setHouseholdId(null);
         setNeedsHousehold(true);
@@ -605,6 +641,14 @@ function App() {
     })();
     return () => { active = false; };
   }, [sessionUser]);
+
+  function switchHousehold(nextId: string) {
+    if (!households.some(household => household.id === nextId)) return;
+    localStorage.setItem("lager-selected-household", nextId);
+    setHouseholdId(nextId);
+    const selected = households.find(household => household.id === nextId);
+    if (selected) setNewHouseholdName(selected.name);
+  }
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault();
@@ -646,10 +690,13 @@ function App() {
   async function joinHouseholdFromSetup() {
     if (!supabase || !setupInviteCode.trim()) return;
     setAuthBusy(true); setAuthMessage("");
-    const { error } = await supabase.rpc("accept_household_invite", { invite_code: setupInviteCode.trim().toUpperCase() });
+    const { data, error } = await supabase.rpc("accept_household_invite", { invite_code: setupInviteCode.trim().toUpperCase() });
     setAuthBusy(false);
     if (error) setAuthMessage(error.message);
-    else window.location.reload();
+    else if (typeof data === "string") {
+      localStorage.setItem("lager-selected-household", data);
+      window.location.reload();
+    } else setAuthMessage("Einladung angenommen, aber die Haushalts-ID wurde nicht zurückgegeben.");
   }
 
   async function createHousehold(event: FormEvent) {
@@ -659,7 +706,13 @@ function App() {
     const { data, error } = await supabase.rpc("create_household", { household_name: newHouseholdName.trim() });
     setAuthBusy(false);
     if (error) setAuthMessage(error.message);
-    else { setHouseholdId(data as string); setNeedsHousehold(false); }
+    else {
+      const createdId = data as string;
+      localStorage.setItem("lager-selected-household", createdId);
+      setHouseholdId(createdId);
+      setHouseholds([{ id: createdId, name: newHouseholdName.trim(), role: "owner" }]);
+      setNeedsHousehold(false);
+    }
   }
 
   async function resetPassword() {
@@ -674,7 +727,15 @@ function App() {
     return <div className="auth-screen"><div className="auth-card"><div className="brand-mark auth-mark"><Boxes size={25}/></div><h1>Supabase noch nicht verbunden</h1><p>Trage zuerst die Supabase-Projekt-URL und den öffentlichen Publishable-/Anon-Key als Cloudflare-Environment-Variablen ein. Danach erscheint hier die Anmeldung.</p></div></div>;
   }
   if (loading) return <div className="auth-screen"><div className="auth-card">Verbindung wird hergestellt …</div></div>;
-  if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="off"/></label>{authMode === "login" && <label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e => toggleRememberEmail(e.target.checked)}/> E-Mail speichern</label>}<label>Passwort<input type="password" required minLength={authMode === "signup" ? 8 : 1} pattern={authMode === "signup" ? "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+" : undefined} title={authMode === "signup" ? "Mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl." : undefined} value={password} onChange={e => setPassword(e.target.value)} autoComplete="off"/></label>{authMode === "signup" && <p className="password-hint">Passwort: mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl.</p>}{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button>{authMode === "login" && <button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button>}<div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { const nextMode = authMode === "login" ? "signup" : "login"; setAuthMode(nextMode); setPassword(""); setAuthMessage(""); if (nextMode === "signup") setEmail(""); else if (rememberEmail) setEmail(localStorage.getItem("lager-saved-email") ?? ""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
+  if (!sessionUser) return <div className="auth-screen"><form className="auth-card" onSubmit={submitAuth}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">LAGERZUHAUSE</div><h1>{authMode === "login" ? "Willkommen zurück" : "Konto erstellen"}</h1><p>{authMode === "login" ? "Melde dich an, um deinen Lagerbestand überall zu nutzen." : "Erstelle dein persönliches Konto für dein Zuhause."}</p><label>E-Mail-Adresse<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="off"/></label>{authMode === "login" && <label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e => toggleRememberEmail(e.target.checked)}/><span>E-Mail speichern</span></label>}<label>Passwort<input type="password" required minLength={authMode === "signup" ? 8 : 1} pattern={authMode === "signup" ? "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).+" : undefined} title={authMode === "signup" ? "Mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl." : undefined} value={password} onChange={e => setPassword(e.target.value)} autoComplete="off"/></label>{authMode === "signup" && <p className="password-hint">Passwort: mindestens 8 Zeichen, ein Großbuchstabe, ein Kleinbuchstabe und eine Zahl.</p>}{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Bitte warten …" : authMode === "login" ? "Anmelden" : "Registrieren"}</button>{authMode === "login" && <button type="button" className="auth-link" onClick={resetPassword}>Passwort vergessen?</button>}<div className="auth-switch">{authMode === "login" ? "Noch kein Konto?" : "Du hast bereits ein Konto?"} <button type="button" onClick={() => { const nextMode = authMode === "login" ? "signup" : "login"; setAuthMode(nextMode); setPassword(""); setAuthMessage(""); if (nextMode === "signup") setEmail(""); else if (rememberEmail) setEmail(localStorage.getItem("lager-saved-email") ?? ""); }}>{authMode === "login" ? "Registrieren" : "Anmelden"}</button></div></form></div>;
   if (needsHousehold || !householdId) return <div className="auth-screen"><form className="auth-card" onSubmit={createHousehold}><div className="brand-mark auth-mark"><Boxes size={25}/></div><div className="eyebrow">FAST GESCHAFFT</div><h1>Dein erster Haushalt</h1><p>Ein Haushalt enthält deine Kategorien und Artikel. Du kannst einen bestehenden Haushalt auch über einen Einladungscode betreten.</p><label>Einladungscode (optional)<input value={setupInviteCode} onChange={e => setSetupInviteCode(e.target.value.toUpperCase())} placeholder="ABCD-1234"/></label>{setupInviteCode.trim() && <button type="button" className="secondary-button" disabled={authBusy} onClick={joinHouseholdFromSetup}>Einladung annehmen</button>}<label>Name des Haushalts<input required value={newHouseholdName} onChange={e => setNewHouseholdName(e.target.value)}/></label>{authMessage && <div className="auth-message">{authMessage}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? "Wird erstellt …" : "Haushalt erstellen"}</button><button type="button" className="auth-link" onClick={signOut}>Abmelden</button></form></div>;
-  return <InventoryApp user={sessionUser} householdId={householdId} onSignOut={signOut}/>;
+  const currentHousehold = households.find(household => household.id === householdId);
+  return <InventoryApp
+    user={sessionUser}
+    householdId={householdId}
+    householdName={currentHousehold?.name ?? newHouseholdName}
+    households={households}
+    onSwitchHousehold={switchHousehold}
+    onSignOut={signOut}
+  />;
 }

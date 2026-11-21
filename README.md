@@ -1,14 +1,22 @@
 # Lagerprogramm für Zuhause
 
-Version **0.6.0**
+Version **0.6.1**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
-## v0.4.1 – Produktsuche und Produktbilder
-- Gemeinsame Produktsuche über Open Food Facts, Open Beauty Facts und Open Products Facts (Barcode- und Textsuche).
-- Kuratierte Produktvorlagen für BioTechUSA-Proteinpulver und Bambu-Lab-Filamente.
-- Produktbilder können über den dauerhaft gespeicherten Schalter „Produktbilder“ global ein- und ausgeblendet werden.
-- Treffer können direkt in das Artikelformular übernommen und anschließend wie gewohnt in Supabase gespeichert werden.
+## Letzte größere Änderungen
+
+### v0.6.1 – Haushaltswechsel und Oberfläche
+- Alle Haushalte eines Kontos werden geladen; der aktive Haushalt kann über die Seitenleiste gewechselt werden.
+- Nach Annahme einer Einladung wird der eingeladene Haushalt automatisch ausgewählt und die Auswahl bleibt gespeichert.
+- Desktop-Seitenleiste bleibt beim Scrollen fixiert; E-Mail-Speicheroption im Login kompakter gestaltet.
+
+### v0.6.0 – Haushaltseinladungen
+- Einladungen per E-Mail und Einladungscode mit sieben Tagen Gültigkeit.
+- Supabase-RPCs für das Erstellen und Annehmen von Einladungen sowie vorbereitete Edge Function für Resend.
+
+### v0.5.0 – Eigener Haushalts-Produktkatalog
+- Barcode-Produktzuordnungen werden haushaltsbezogen in Supabase gespeichert und bei späteren Suchen bevorzugt.
 
 ## Entwicklung
 

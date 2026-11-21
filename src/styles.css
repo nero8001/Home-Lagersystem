@@ -288,3 +288,19 @@ tbody tr:last-child td{border-bottom:0}
 .invite-box input { width: 100%; min-width: 0; }
 .invite-code { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .invite-code strong { font-size: 1.35rem; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+
+
+/* v0.6.1: fixed desktop sidebar, household switcher and compact auth checkbox */
+@media (min-width: 761px) {
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; height: 100vh; min-height: 0; }
+  .main { margin-left: 248px; min-height: 100vh; }
+}
+.household-switcher { margin: 0 2px 18px; padding: 12px; border: 1px solid #ffffff18; border-radius: 11px; background: #ffffff09; display: grid; gap: 8px; }
+.household-switcher > label { color: #78949d; font-size: 8px; letter-spacing: 1.15px; font-weight: 800; }
+.household-select-wrap { min-width: 0; display: flex; align-items: center; gap: 7px; color: #75d9ce; }
+.household-select-wrap select { appearance: none; flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #f0fbfa; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.household-select-wrap select option { color: #192b35; background: #fff; }
+.household-switcher > small { color: #78949d; font-size: 9px; }
+.auth-card label.remember-email { display: flex !important; flex-direction: row; align-items: center; justify-content: flex-start; align-self: flex-start; width: auto; gap: 8px; margin: -5px 0 0; font-size: 11px !important; font-weight: 500 !important; color: var(--muted) !important; cursor: pointer; }
+.auth-card label.remember-email input[type="checkbox"] { appearance: auto; width: 16px !important; height: 16px; flex: 0 0 16px; margin: 0; padding: 0; accent-color: var(--teal); }
+@media (max-width: 760px) { .main { margin-left: 0; } .household-switcher { margin-bottom: 14px; } }
