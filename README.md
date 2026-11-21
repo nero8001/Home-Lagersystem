@@ -1,10 +1,15 @@
 # Lagerprogramm für Zuhause
 
-Version **0.6.2**
+Version **0.6.3**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
 ## Letzte größere Änderungen
+
+### v0.6.3 – Einladungsübersicht und Status
+- Einladungen zeigen Erstellungsdatum, Ablaufdatum und Status (offen, abgelaufen oder angenommen).
+- Angenommene und abgelaufene Einladungen bleiben zur Nachvollziehbarkeit sichtbar; widerrufen werden können nur noch offene Einladungen.
+- Neue Migration `supabase/household_invites_status.sql` erweitert die abgesicherte Einladungsabfrage.
 
 ### v0.6.2 – Mitglieder- und Haushaltsverwaltung
 - Mitgliederliste zeigt E-Mail-Adressen und Rollen; Besitzer und Administratoren können Mitglieder verwalten.
@@ -81,3 +86,7 @@ Open Products Facts ist experimentell und kann eine geringere Datenabdeckung hab
 ### Einrichtung der Mitgliederverwaltung (v0.6.2)
 1. Nach dem bisherigen Schema und `household_invites.sql` die Datei `supabase/household_management.sql` einmal im Supabase SQL Editor des bestehenden Projekts ausführen.
 2. Anschließend die neue App-Version deployen. Die bisherigen Tabellen und Einladungsfunktionen bleiben bestehen.
+
+### Einrichtung der Einladungsübersicht (v0.6.3)
+1. Nach `household_invites.sql` und `household_management.sql` die Datei `supabase/household_invites_status.sql` einmal im Supabase SQL Editor ausführen.
+2. Anschließend die App-Version v0.6.3 deployen.

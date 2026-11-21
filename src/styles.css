@@ -318,3 +318,13 @@ tbody tr:last-child td{border-bottom:0}
   .member-actions { width: 100%; justify-content: flex-start; }
   .member-actions select { flex: 1; min-width: 120px; }
 }
+
+/* v0.6.3 invitation status labels */
+.invitation-row { align-items: center; }
+.invite-status { display: inline-flex; align-items: center; border-radius: 20px; padding: 6px 9px; font-size: 9px; font-weight: 750; white-space: nowrap; background: var(--soft); color: var(--muted); }
+.invite-status-pending { background: #e4f7ee; color: #168b69; }
+.invite-status-expired { background: #fff0e5; color: #bd7135; }
+.invite-status-accepted { background: #e8efff; color: #4d6eb4; }
+.dark .invite-status-pending { background: #174337; color: #65d5a8; }
+.dark .invite-status-expired { background: #493720; color: #f1b45d; }
+.dark .invite-status-accepted { background: #263858; color: #a8c2ff; }
