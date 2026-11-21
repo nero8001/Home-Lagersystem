@@ -1,10 +1,16 @@
 # Lagerprogramm für Zuhause
 
-Version **0.6.1**
+Version **0.6.2**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
 ## Letzte größere Änderungen
+
+### v0.6.2 – Mitglieder- und Haushaltsverwaltung
+- Mitgliederliste zeigt E-Mail-Adressen und Rollen; Besitzer und Administratoren können Mitglieder verwalten.
+- Administratoren können reguläre Mitglieder zu Admins machen und reguläre Mitglieder entfernen; Besitzer behalten die vollständige Rollenverwaltung.
+- Offene Einladungen lassen sich einsehen und widerrufen; Besitzer können den Haushalt umbenennen oder endgültig löschen.
+- Neue abgesicherte Supabase-RPCs in `supabase/household_management.sql`.
 
 ### v0.6.1 – Haushaltswechsel und Oberfläche
 - Alle Haushalte eines Kontos werden geladen; der aktive Haushalt kann über die Seitenleiste gewechselt werden.
@@ -14,9 +20,6 @@ Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, Type
 ### v0.6.0 – Haushaltseinladungen
 - Einladungen per E-Mail und Einladungscode mit sieben Tagen Gültigkeit.
 - Supabase-RPCs für das Erstellen und Annehmen von Einladungen sowie vorbereitete Edge Function für Resend.
-
-### v0.5.0 – Eigener Haushalts-Produktkatalog
-- Barcode-Produktzuordnungen werden haushaltsbezogen in Supabase gespeichert und bei späteren Suchen bevorzugt.
 
 ## Entwicklung
 
@@ -73,3 +76,8 @@ Open Products Facts ist experimentell und kann eine geringere Datenabdeckung hab
 3. In den Edge-Function-Secrets `RESEND_API_KEY` und `INVITE_FROM_EMAIL` hinterlegen. Die Absenderadresse muss bei Resend verifiziert sein.
 4. Ohne eingerichteten E-Mail-Versand kann weiterhin ein Einladungscode erzeugt und der Einladungslink geteilt werden.
 5. Einladungscodes laufen nach 7 Tagen ab und können nur einmal eingelöst werden.
+
+
+### Einrichtung der Mitgliederverwaltung (v0.6.2)
+1. Nach dem bisherigen Schema und `household_invites.sql` die Datei `supabase/household_management.sql` einmal im Supabase SQL Editor des bestehenden Projekts ausführen.
+2. Anschließend die neue App-Version deployen. Die bisherigen Tabellen und Einladungsfunktionen bleiben bestehen.

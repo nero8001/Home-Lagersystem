@@ -70,7 +70,10 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
   const [inviteMessage, setInviteMessage] = useState("");
   const [joinCode, setJoinCode] = useState("");
   useEffect(() => { const code = new URLSearchParams(window.location.search).get("invite"); if (code) { setJoinCode(code.toUpperCase()); setPage("settings"); } }, []);
-  const [memberRows, setMemberRows] = useState<Array<{ user_id: string; role: string; email?: string }>>([]);
+  const [memberRows, setMemberRows] = useState<Array<{ user_id: string; role: string; email: string | null }>>([]);
+  const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; invited_email: string | null; code: string; expires_at: string }>>([]);
+  const [householdRole, setHouseholdRole] = useState<string>(households.find(h => h.id === householdId)?.role ?? "member");
+  const [householdNameEdit, setHouseholdNameEdit] = useState(householdName);
 
 
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
@@ -147,14 +150,70 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
     if (error) { console.error(error); window.alert(language === "de" ? "Kategorie konnte nicht synchronisiert werden: " + error.message : "Could not sync category: " + error.message); }
   }
 
+  const canManageHousehold = householdRole === "owner" || householdRole === "admin";
+  const isOwner = householdRole === "owner";
+
   async function refreshMembers() {
     if (!supabase) return;
-    const { data, error } = await supabase.from("household_members").select("user_id,role").eq("household_id", householdId);
+    const [{ data, error }, inviteResult] = await Promise.all([
+      supabase.rpc("list_household_members", { target_household: householdId }),
+      supabase.rpc("list_household_invites", { target_household: householdId }),
+    ]);
     if (error) { setInviteMessage(error.message); return; }
     setMemberRows(data ?? []);
+    if (!inviteResult.error) setPendingInvites(inviteResult.data ?? []);
   }
 
-  useEffect(() => { void refreshMembers(); }, [householdId]);
+  useEffect(() => {
+    setHouseholdRole(households.find(h => h.id === householdId)?.role ?? "member");
+    setHouseholdNameEdit(householdName);
+    void refreshMembers();
+  }, [householdId, householdName, households]);
+
+  async function changeMemberRole(memberId: string, role: string) {
+    if (!supabase) return;
+    setInviteBusy(true); setInviteMessage("");
+    const { error } = await supabase.rpc("set_household_member_role", { target_household: householdId, target_user: memberId, new_role: role });
+    setInviteBusy(false);
+    setInviteMessage(error ? error.message : (language === "de" ? "Rolle aktualisiert." : "Role updated."));
+    if (!error) await refreshMembers();
+  }
+
+  async function removeMember(memberId: string) {
+    if (!supabase) return;
+    const member = memberRows.find(row => row.user_id === memberId);
+    if (!window.confirm(language === "de" ? `Mitglied ${member?.email ?? ""} wirklich aus diesem Haushalt entfernen?` : `Remove ${member?.email ?? "this member"} from this household?`)) return;
+    setInviteBusy(true); setInviteMessage("");
+    const { error } = await supabase.rpc("remove_household_member", { target_household: householdId, target_user: memberId });
+    setInviteBusy(false);
+    setInviteMessage(error ? error.message : (language === "de" ? "Mitglied entfernt." : "Member removed."));
+    if (!error) await refreshMembers();
+  }
+
+  async function revokeInvite(inviteId: string) {
+    if (!supabase) return;
+    if (!window.confirm(language === "de" ? "Diese Einladung wirklich widerrufen?" : "Revoke this invitation?")) return;
+    const { error } = await supabase.rpc("revoke_household_invite", { target_invite: inviteId });
+    setInviteMessage(error ? error.message : (language === "de" ? "Einladung widerrufen." : "Invitation revoked."));
+    if (!error) await refreshMembers();
+  }
+
+  async function renameHousehold() {
+    if (!supabase || !householdNameEdit.trim()) return;
+    const { error } = await supabase.rpc("rename_household", { target_household: householdId, new_name: householdNameEdit.trim() });
+    setInviteMessage(error ? error.message : (language === "de" ? "Haushaltsname gespeichert. Bitte Seite neu laden, falls der Name oben noch nicht aktualisiert ist." : "Household name saved. Reload if the name above has not updated."));
+    if (!error) window.location.reload();
+  }
+
+  async function deleteHousehold() {
+    if (!supabase || !isOwner) return;
+    const confirmation = window.prompt(language === "de" ? `Zum endgültigen Löschen bitte exakt „${householdName}“ eingeben:` : `Type “${householdName}” to permanently delete this household:`);
+    if (confirmation !== householdName) return;
+    const { error } = await supabase.rpc("delete_household", { target_household: householdId });
+    if (error) { setInviteMessage(error.message); return; }
+    localStorage.removeItem("lager-selected-household");
+    window.location.reload();
+  }
 
   async function createInvite() {
     if (!supabase) return;
@@ -229,11 +288,9 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
   async function runProductSearch() {
     const query = productQuery.trim() || form.barcode.trim() || form.name.trim();
     if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
-    const client = supabase;
-    if (!client) { setProductError(language === "de" ? "Supabase ist nicht konfiguriert." : "Supabase is not configured."); return; }
     setProductLoading(true); setProductError(""); setProductHits([]);
     try {
-      const localQuery = client.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
+      const localQuery = supabase.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
       const localResult = /^[0-9]{8,14}$/.test(query)
         ? await localQuery.eq("barcode", query)
         : await localQuery.ilike("name", `%${query.replace(/[%_]/g, "\\$&")}%`).limit(12);
@@ -487,10 +544,15 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
           {page === "shopping" && <section className="panel coming-panel"><div className="coming-icon"><ShoppingCart size={27}/></div><h1>{tr("shopping")}</h1><p>{tr("shoppingHint")}</p><span className="coming-tag">{tr("comingSoon")}</span></section>}
 
           {page === "settings" && <><div className="page-heading"><div><div className="eyebrow">{tr("settings").toUpperCase()}</div><h1>{tr("settings")}</h1><p>{language === "de" ? "Passe deine Lagerverwaltung an." : "Customize your inventory app."}</p></div></div><section className="panel settings-panel"><div className="setting-row"><div><strong>{tr("language")}</strong><small>Deutsch / English</small></div><select value={language} onChange={e => setLanguage(e.target.value as Language)}><option value="de">Deutsch</option><option value="en">English</option></select></div><div className="setting-row"><div><strong>{tr("darkMode")}</strong><small>{language === "de" ? "Dunkle Oberfläche aktivieren" : "Enable dark appearance"}</small></div><button className="secondary-button" onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>} {dark ? "Light" : "Dark"}</button></div><div className="setting-row"><div><strong>Produktbilder</strong><small>{language === "de" ? "Produktbilder in Suche und Vorschau anzeigen" : "Show product images in search and previews"}</small></div><label className="switch-control"><input type="checkbox" checked={showProductImages} onChange={e => setShowProductImages(e.target.checked)}/><span className="switch-slider"/></label></div><div className="setting-row"><div><strong>Supabase</strong><small>{language === "de" ? "Deine Daten werden mit diesem Haushalt synchronisiert." : "Your data is synced with this household."}</small></div><span className="connection-pill connected">Connected</span></div></section>
-<section className="panel settings-panel household-panel"><h2>{householdName}</h2><p>{language === "de" ? "Aktueller Haushalt · Mitglieder einladen und gemeinsam den Lagerbestand verwalten." : "Current household · Invite members and manage inventory together."}</p><div className="member-list">{memberRows.map(member => <div className="setting-row" key={member.user_id}><div><strong>{member.user_id === user.id ? "Du" : "Haushaltsmitglied"}</strong><small>{member.user_id === user.id ? user.email : member.user_id}</small></div><span className="connection-pill">{member.role === "owner" ? "Besitzer" : member.role === "admin" ? "Administrator" : "Mitglied"}</span></div>)}</div>
-<div className="invite-box"><h3>Per E-Mail einladen</h3><label>E-Mail-Adresse<input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="name@beispiel.de"/></label><button className="primary-button" type="button" disabled={inviteBusy || !inviteEmail.trim()} onClick={() => void createInvite()}>{inviteBusy ? "Bitte warten …" : "Einladung per E-Mail senden"}</button></div>
-<div className="invite-box"><h3>Einladungscode erstellen</h3><p>Du kannst den Code auch persönlich weitergeben.</p><button className="secondary-button" type="button" disabled={inviteBusy} onClick={() => { setInviteEmail(""); void createInvite(); }}>Code erstellen</button>{inviteCode && <div className="invite-code"><strong>{inviteCode}</strong><button className="secondary-button" type="button" onClick={() => void copyInvite()}>Link kopieren</button></div>}</div>
-<div className="invite-box"><h3>Einladungscode einlösen</h3><label>Code<input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="ABCD-1234"/></label><button className="secondary-button" type="button" disabled={inviteBusy || !joinCode.trim()} onClick={() => void acceptInvite()}>Haushalt beitreten</button></div>{inviteMessage && <div className="auth-message">{inviteMessage}</div>}</section></>}
+<section className="panel settings-panel household-panel"><h2>{householdName}</h2><p>{language === "de" ? "Mitglieder und Zugriffsrechte dieses Haushalts verwalten." : "Manage this household's members and access."}</p>
+{isOwner && <div className="invite-box"><h3>{language === "de" ? "Haushaltseinstellungen" : "Household settings"}</h3><label>{language === "de" ? "Haushaltsname" : "Household name"}<input value={householdNameEdit} maxLength={80} onChange={e => setHouseholdNameEdit(e.target.value)}/></label><button className="secondary-button" type="button" disabled={!householdNameEdit.trim() || householdNameEdit.trim() === householdName} onClick={() => void renameHousehold()}>{language === "de" ? "Namen speichern" : "Save name"}</button></div>}
+<h3>{language === "de" ? "Mitglieder" : "Members"}</h3><div className="member-list">{memberRows.map(member => <div className="setting-row member-management-row" key={member.user_id}><div><strong>{member.user_id === user.id ? (language === "de" ? "Du" : "You") : (member.email ?? (language === "de" ? "Haushaltsmitglied" : "Household member"))}</strong><small>{member.email ?? member.user_id}</small></div><div className="member-actions"><span className="connection-pill">{member.role === "owner" ? (language === "de" ? "Besitzer" : "Owner") : member.role === "admin" ? (language === "de" ? "Administrator" : "Administrator") : (language === "de" ? "Mitglied" : "Member")}</span>{canManageHousehold && member.role !== "owner" && member.user_id !== user.id && <><select aria-label={language === "de" ? "Mitgliedsrolle" : "Member role"} value={member.role} disabled={inviteBusy || (householdRole === "admin" && member.role === "admin")} onChange={e => void changeMemberRole(member.user_id, e.target.value)}><option value="member">{language === "de" ? "Mitglied" : "Member"}</option><option value="admin">Administrator</option></select><button type="button" className="danger-text-button" disabled={inviteBusy} onClick={() => void removeMember(member.user_id)}>{language === "de" ? "Entfernen" : "Remove"}</button></>}</div></div>)}</div>
+{canManageHousehold && <><div className="invite-box"><h3>{language === "de" ? "Per E-Mail einladen" : "Invite by email"}</h3><label>{language === "de" ? "E-Mail-Adresse" : "Email address"}<input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="name@beispiel.de"/></label><button className="primary-button" type="button" disabled={inviteBusy || !inviteEmail.trim()} onClick={() => void createInvite()}>{inviteBusy ? (language === "de" ? "Bitte warten …" : "Please wait …") : (language === "de" ? "Einladung per E-Mail senden" : "Send email invitation")}</button></div>
+<div className="invite-box"><h3>{language === "de" ? "Einladungscode erstellen" : "Create invitation code"}</h3><p>{language === "de" ? "Du kannst den Code auch persönlich weitergeben." : "You can also share the code directly."}</p><button className="secondary-button" type="button" disabled={inviteBusy} onClick={() => { setInviteEmail(""); void createInvite(); }}>{language === "de" ? "Code erstellen" : "Create code"}</button>{inviteCode && <div className="invite-code"><strong>{inviteCode}</strong><button className="secondary-button" type="button" onClick={() => void copyInvite()}>{language === "de" ? "Link kopieren" : "Copy link"}</button></div>}</div>
+<h3>{language === "de" ? "Offene Einladungen" : "Pending invitations"}</h3><div className="member-list">{pendingInvites.length === 0 ? <p>{language === "de" ? "Keine offenen Einladungen." : "No pending invitations."}</p> : pendingInvites.map(invite => <div className="setting-row" key={invite.id}><div><strong>{invite.invited_email || (language === "de" ? "Einladung per Code" : "Code invitation")}</strong><small>{language === "de" ? "Läuft ab: " : "Expires: "}{new Date(invite.expires_at).toLocaleString(language === "de" ? "de-DE" : "en-US")}</small></div><button className="danger-text-button" type="button" onClick={() => void revokeInvite(invite.id)}>{language === "de" ? "Widerrufen" : "Revoke"}</button></div>)}</div></>}
+<div className="invite-box"><h3>{language === "de" ? "Einladungscode einlösen" : "Redeem invitation code"}</h3><label>{language === "de" ? "Code" : "Code"}<input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="ABCD1234"/></label><button className="secondary-button" type="button" disabled={inviteBusy || !joinCode.trim()} onClick={() => void acceptInvite()}>{language === "de" ? "Haushalt beitreten" : "Join household"}</button></div>
+{isOwner && <div className="invite-box danger-zone"><h3>{language === "de" ? "Gefahrenzone" : "Danger zone"}</h3><p>{language === "de" ? "Der Haushalt und alle zugehörigen Lagerdaten werden endgültig gelöscht." : "The household and all associated inventory data will be permanently deleted."}</p><button className="danger-button" type="button" onClick={() => void deleteHousehold()}>{language === "de" ? "Haushalt endgültig löschen" : "Permanently delete household"}</button></div>}
+{inviteMessage && <div className="auth-message">{inviteMessage}</div>}</section></>}
         </div>
       </main>
 

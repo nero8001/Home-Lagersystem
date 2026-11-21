@@ -304,3 +304,17 @@ tbody tr:last-child td{border-bottom:0}
 .auth-card label.remember-email { display: flex !important; flex-direction: row; align-items: center; justify-content: flex-start; align-self: flex-start; width: auto; gap: 8px; margin: -5px 0 0; font-size: 11px !important; font-weight: 500 !important; color: var(--muted) !important; cursor: pointer; }
 .auth-card label.remember-email input[type="checkbox"] { appearance: auto; width: 16px !important; height: 16px; flex: 0 0 16px; margin: 0; padding: 0; accent-color: var(--teal); }
 @media (max-width: 760px) { .main { margin-left: 0; } .household-switcher { margin-bottom: 14px; } }
+
+/* v0.6.2 household administration */
+.member-management-row { align-items: center; gap: 14px; }
+.member-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.member-actions select { width: auto; min-width: 132px; }
+.danger-text-button { border: 0; background: transparent; color: #c44b55; font: inherit; font-weight: 650; cursor: pointer; padding: 7px 8px; }
+.danger-text-button:disabled { opacity: .5; cursor: not-allowed; }
+.danger-zone { border-color: rgba(196,75,85,.45); }
+.danger-button { justify-self: start; border: 1px solid #c44b55; border-radius: 10px; background: #c44b55; color: white; padding: 10px 14px; font: inherit; font-weight: 650; cursor: pointer; }
+@media (max-width: 640px) {
+  .member-management-row { align-items: flex-start; flex-direction: column; }
+  .member-actions { width: 100%; justify-content: flex-start; }
+  .member-actions select { flex: 1; min-width: 120px; }
+}
