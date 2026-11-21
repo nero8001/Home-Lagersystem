@@ -290,7 +290,9 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
     if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
     setProductLoading(true); setProductError(""); setProductHits([]);
     try {
-      const localQuery = supabase.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
+      const client = supabase;
+      if (!client) throw new Error(language === "de" ? "Die Cloud-Verbindung ist nicht verfügbar." : "The cloud connection is unavailable.");
+      const localQuery = client.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
       const localResult = /^[0-9]{8,14}$/.test(query)
         ? await localQuery.eq("barcode", query)
         : await localQuery.ilike("name", `%${query.replace(/[%_]/g, "\\$&")}%`).limit(12);
