@@ -63,7 +63,6 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   useEffect(() => { const code = new URLSearchParams(window.location.search).get("invite"); if (code) { setJoinCode(code.toUpperCase()); setPage("settings"); } }, []);
   const [memberRows, setMemberRows] = useState<Array<{ user_id: string; role: string; email?: string }>>([]);
 
-
   const tr = (key: Parameters<typeof t>[1]) => t(language, key);
   const handleBarcodeDetected = useCallback((value: string) => {
     if (scannerTarget === "product-search") { setProductQuery(value); setForm(current => ({ ...current, barcode: value })); }
@@ -173,7 +172,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   async function acceptInvite() {
     if (!supabase || !joinCode.trim()) return;
     setInviteBusy(true); setInviteMessage("");
-    const { data, error } = await supabase.rpc("accept_household_invite", { invite_code: joinCode.trim().toUpperCase() });
+    const { error } = await supabase.rpc("accept_household_invite", { invite_code: joinCode.trim().toUpperCase() });
     setInviteBusy(false);
     if (error) { setInviteMessage(error.message); return; }
     setInviteMessage("Einladung angenommen. Bitte lade die Seite neu.");
@@ -216,9 +215,16 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
   async function runProductSearch() {
     const query = productQuery.trim() || form.barcode.trim() || form.name.trim();
     if (!query) { setProductError(language === "de" ? "Bitte zuerst einen Barcode oder Produktnamen eingeben." : "Enter a barcode or product name first."); return; }
+
+    const client = supabase;
+    if (!client) {
+      setProductError(language === "de" ? "Supabase ist nicht konfiguriert." : "Supabase is not configured.");
+      return;
+    }
+
     setProductLoading(true); setProductError(""); setProductHits([]);
     try {
-      const localQuery = supabase.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
+      const localQuery = client.from("household_products").select("id,name,brand,barcode,description,image_url").eq("household_id", householdId);
       const localResult = /^[0-9]{8,14}$/.test(query)
         ? await localQuery.eq("barcode", query)
         : await localQuery.ilike("name", `%${query.replace(/[%_]/g, "\\$&")}%`).limit(12);
@@ -234,8 +240,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     } catch (error) { setProductError(error instanceof Error ? error.message : "Produktsuche fehlgeschlagen."); }
     finally { setProductLoading(false); }
   }
-
-  function chooseProduct(hit: ProductHit) {
+    function chooseProduct(hit: ProductHit) {
     setForm(current => ({ ...current, name: hit.name, description: [hit.brand, hit.quantity].filter(Boolean).join(" · ") || hit.description, barcode: hit.barcode || current.barcode }));
     setProductHits([]); setProductError(""); setProductQuery("");
   }
@@ -415,8 +420,7 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
             <div className="top-avatar">L</div>
           </div>
         </header>
-
-        <div className="content">
+                <div className="content">
           {cloudStatus === "error" && <div className="cloud-error-banner" role="status"><strong>{language === "de" ? "Cloud-Daten konnten nicht geladen werden" : "Could not load cloud data"}</strong><span>{cloudError}</span><small>{language === "de" ? "Bitte Datenbankrechte und RLS-Richtlinien prüfen. Lokale Demodaten werden nicht als synchronisiert angezeigt." : "Please check database grants and RLS policies. Local demo data is not shown as synced."}</small></div>}
           {page === "dashboard" && <>
             <div className="page-heading">
@@ -473,7 +477,6 @@ function InventoryApp({ user, householdId, onSignOut }: { user: User; householdI
     </div>
   );
 }
-
 function BarcodeScanner({ language, onClose, onDetected }: { language: Language; onClose: () => void; onDetected: (value: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -534,24 +537,29 @@ function StatCard({ icon, label, value, detail, tone }: { icon: ReactNode; label
 function QuantityInput({ item, label, onCommit }: { item: InventoryItem; label: string; onCommit: (value: number) => void }) {
   const [value, setValue] = useState(String(item.quantity));
   useEffect(() => setValue(String(item.quantity)), [item.quantity]);
-  return <input aria-label={label} type="number" min="0" step="1" value={value}
-    onChange={event => setValue(event.target.value)}
-    onBlur={() => { const next = Math.max(0, Number(value) || 0); setValue(String(next)); if (next !== item.quantity) onCommit(next); }}
-    onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>;
+  return <input aria-label={label} className="quantity-input" type="number" min="0" step="1" value={value} onChange={event => setValue(event.target.value)} onBlur={() => onCommit(Number(value))} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>;
 }
 
 function ItemTable({ items, categories, onEdit, onDelete, onChange, onSet, tr, compact = false }: {
-  items: InventoryItem[]; categories: Category[]; onEdit: (item: InventoryItem) => void;
-  onDelete: (id: string) => void; onChange: (id: string, delta: number) => void;
-  onSet: (id: string, value: number) => void; tr: (key: Parameters<typeof t>[1]) => string; compact?: boolean;
+  items: InventoryItem[];
+  categories: Category[];
+  onEdit: (item: InventoryItem) => void;
+  onDelete: (id: string) => void;
+  onChange: (id: string, delta: number) => void;
+  onSet: (id: string, value: number) => void;
+  tr: (key: Parameters<typeof t>[1]) => string;
+  compact?: boolean;
 }) {
-  const categoryLabel = (id: string | null) => categories.find(c => c.id === id)?.name ?? "–";
-  function status(item: InventoryItem) {
-    if (item.quantity === 0) return { label: tr("empty"), cls: "empty" };
-    if (item.quantity <= item.minQuantity) return { label: tr("low"), cls: "low" };
-    return { label: tr("inStock"), cls: "good" };
+  function categoryName(id: string | null) {
+    return categories.find(category => category.id === id)?.name ?? "–";
   }
-  return <div className="table-wrap"><table><thead><tr><th>{tr("item")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => { const state = status(item); return <tr key={item.id}><td><div className="item-cell"><div className="item-icon"><Package size={17}/></div><div><strong>{item.name}</strong><small>{item.description || categoryLabel(item.categoryId)}</small></div></div></td>{!compact && <td className="category-cell">{categoryLabel(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><QuantityInput item={item} label={`${tr("quantity")} ${item.name}`} onCommit={value => onSet(item.id, value)}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
+
+  return <div className="table-wrap"><table className="inventory-table"><thead><tr><th>{tr("name")}</th>{!compact && <th>{tr("category")}</th>}<th>{tr("quantity")}</th><th>{tr("status")}</th>{!compact && <th>{tr("location")}</th>}<th></th></tr></thead><tbody>{items.map(item => {
+    const low = item.quantity <= item.minQuantity;
+    const state = low
+      ? { cls: "low", label: tr("lowStock") }
+      : { cls: "good", label: tr("inStock") };
+    return <tr key={item.id}><td><div className="item-name-cell"><div className="item-icon"><Package size={16}/></div><div><strong>{item.name}</strong>{item.description && <small>{item.description}</small>}</div></div></td>{!compact && <td className="category-cell">{categoryName(item.categoryId)}</td>}<td><div className="quantity-control"><button onClick={() => onChange(item.id, -1)} aria-label="Menge verringern"><Minus size={13}/></button><QuantityInput item={item} label={`${tr("quantity")} ${item.name}`} onCommit={value => onSet(item.id, value)}/><button onClick={() => onChange(item.id, 1)} aria-label="Menge erhöhen"><Plus size={13}/></button><small>{item.unit}</small></div></td><td><span className={`status-pill ${state.cls}`}><span/>{state.label}</span></td>{!compact && <td className="location-cell">{item.location ? <span className="location-content"><MapPin size={13}/>{item.location}</span> : "–"}</td>}<td><div className="row-actions"><button onClick={() => onEdit(item)} aria-label={tr("edit")} title={tr("edit")}><Pencil size={15}/></button><button onClick={() => onDelete(item.id)} aria-label={tr("delete")} title={tr("delete")}><Trash2 size={15}/></button></div></td></tr>; })}</tbody></table>{items.length === 0 && <div className="table-empty"><PackagePlus size={25}/><strong>{tr("noItems")}</strong></div>}</div>;
 }
 
 export default App;
