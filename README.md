@@ -1,30 +1,25 @@
 # Lagerprogramm für Zuhause
 
-Version **0.6.3**
+Version **0.6.4**
 
 Eine private, cloud-synchronisierte Lagerverwaltung für Zuhause mit React, TypeScript, Vite und Supabase.
 
 ## Letzte größere Änderungen
 
+### v0.6.4 – Angenommene Einladungen ausblenden
+- Angenommene Einladungen werden nicht mehr in der Einladungsübersicht angezeigt.
+- Offene und abgelaufene Einladungen bleiben mit Status sowie Erstellungs- und Ablaufdatum sichtbar.
+- Widerrufen bleibt auf offene Einladungen beschränkt; neue Migration `supabase/household_invites_cleanup.sql`.
+
 ### v0.6.3 – Einladungsübersicht und Status
 - Einladungen zeigen Erstellungsdatum, Ablaufdatum und Status (offen, abgelaufen oder angenommen).
-- Angenommene und abgelaufene Einladungen bleiben zur Nachvollziehbarkeit sichtbar; widerrufen werden können nur noch offene Einladungen.
-- Neue Migration `supabase/household_invites_status.sql` erweitert die abgesicherte Einladungsabfrage.
+- Widerrufen können nur noch offene Einladungen; Statusabfrage ist serverseitig abgesichert.
+- Neue Migration `supabase/household_invites_status.sql`.
 
 ### v0.6.2 – Mitglieder- und Haushaltsverwaltung
 - Mitgliederliste zeigt E-Mail-Adressen und Rollen; Besitzer und Administratoren können Mitglieder verwalten.
 - Administratoren können reguläre Mitglieder zu Admins machen und reguläre Mitglieder entfernen; Besitzer behalten die vollständige Rollenverwaltung.
 - Offene Einladungen lassen sich einsehen und widerrufen; Besitzer können den Haushalt umbenennen oder endgültig löschen.
-- Neue abgesicherte Supabase-RPCs in `supabase/household_management.sql`.
-
-### v0.6.1 – Haushaltswechsel und Oberfläche
-- Alle Haushalte eines Kontos werden geladen; der aktive Haushalt kann über die Seitenleiste gewechselt werden.
-- Nach Annahme einer Einladung wird der eingeladene Haushalt automatisch ausgewählt und die Auswahl bleibt gespeichert.
-- Desktop-Seitenleiste bleibt beim Scrollen fixiert; E-Mail-Speicheroption im Login kompakter gestaltet.
-
-### v0.6.0 – Haushaltseinladungen
-- Einladungen per E-Mail und Einladungscode mit sieben Tagen Gültigkeit.
-- Supabase-RPCs für das Erstellen und Annehmen von Einladungen sowie vorbereitete Edge Function für Resend.
 
 ## Entwicklung
 
@@ -90,3 +85,7 @@ Open Products Facts ist experimentell und kann eine geringere Datenabdeckung hab
 ### Einrichtung der Einladungsübersicht (v0.6.3)
 1. Nach `household_invites.sql` und `household_management.sql` die Datei `supabase/household_invites_status.sql` einmal im Supabase SQL Editor ausführen.
 2. Anschließend die App-Version v0.6.3 deployen.
+
+
+### v0.6.4 – Supabase-Migration
+1. Nach den bisherigen Einladungs- und Haushaltsmigrationen `supabase/household_invites_cleanup.sql` einmal im Supabase SQL Editor des bestehenden Projekts ausführen.
