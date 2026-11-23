@@ -328,3 +328,35 @@ tbody tr:last-child td{border-bottom:0}
 .dark .invite-status-pending { background: #174337; color: #65d5a8; }
 .dark .invite-status-expired { background: #493720; color: #f1b45d; }
 .dark .invite-status-accepted { background: #263858; color: #a8c2ff; }
+
+/* v0.7.0: dedicated mobile inventory cards */
+.mobile-item-list { display: none; }
+.mobile-item-card { position: relative; padding: 15px; border-bottom: 1px solid var(--line); background: var(--panel); display: grid; gap: 13px; }
+.mobile-item-card:last-child { border-bottom: 0; }
+.mobile-item-top { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.mobile-item-heading { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.mobile-item-heading strong { color: var(--text); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.mobile-item-heading small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.mobile-item-menu { position: relative; flex: 0 0 auto; }
+.mobile-item-menu summary { list-style: none; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--soft); cursor: pointer; }
+.mobile-item-menu summary::-webkit-details-marker { display: none; }
+.mobile-item-menu[open] summary { color: var(--teal); border-color: var(--teal); }
+.mobile-item-menu-pop { position: absolute; z-index: 20; right: 0; top: 39px; min-width: 145px; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 10px 28px #102a3526; display: grid; }
+.mobile-item-menu-pop button { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; border-radius: 7px; padding: 10px; background: transparent; color: var(--text); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.mobile-item-menu-pop button:hover { background: var(--soft); }
+.mobile-item-menu-pop button:last-child { color: #c44b55; }
+.mobile-item-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-left: 43px; }
+.mobile-quantity { display: grid; gap: 6px; }
+.mobile-quantity > span { color: var(--muted); font-size: 10px; font-weight: 650; }
+.mobile-item-card .quantity-control { gap: 7px; }
+.mobile-item-card .quantity-control button { width: 34px; height: 34px; border-radius: 9px; }
+.mobile-item-card .quantity-control input { width: 34px; font-size: 14px; }
+.mobile-item-card .quantity-control small { font-size: 11px; }
+.mobile-item-card .status-pill { font-size: 10px; padding: 7px 10px; }
+@media (max-width: 760px) {
+  .desktop-item-table { display: none; }
+  .mobile-item-list { display: grid; }
+  .table-wrap { overflow: visible; }
+  .full-panel { overflow: visible; }
+  .table-footer { padding: 13px 15px; }
+}
