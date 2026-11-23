@@ -533,10 +533,11 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
               <div><div className="eyebrow">DEIN PRIVATES LAGER</div><h1>{tr("greeting")}</h1><p>{tr("subtitle")}</p></div>
               <button className="primary-button" onClick={openNewItem}><Plus size={18}/>{tr("addItem")}</button>
             </div>
-            <section className="stats-grid">
-              <StatCard icon={<Package size={19}/>} label={tr("totalItems")} value={items.length.toString()} detail={`${totalPieces} ${tr("unitsInStock")}`} tone="teal"/>
-              <StatCard icon={<CircleAlert size={19}/>} label={tr("lowStock")} value={lowItems.length.toString()} detail={language === "de" ? "Artikel benötigen Aufmerksamkeit" : "items need attention"} tone="orange"/>
-              <StatCard icon={<Layers3 size={19}/>} label={tr("categoriesCount")} value={categories.length.toString()} detail={language === "de" ? "Haupt- und Unterkategorien" : "Main and subcategories"} tone="blue"/>
+            <section className="stats-grid stock-summary-grid">
+              <StatCard icon={<Package size={19}/>} label={language === "de" ? "Artikel insgesamt" : "Total items"} value={items.length.toString()} detail={`${totalPieces} ${tr("unitsInStock")}`} tone="teal"/>
+              <StatCard icon={<Check size={19}/>} label={language === "de" ? "Auf Lager" : "In stock"} value={items.filter(item => item.quantity > item.minQuantity).length.toString()} detail={language === "de" ? "Ausreichender Bestand" : "Sufficient stock"} tone="green"/>
+              <StatCard icon={<CircleAlert size={19}/>} label={language === "de" ? "Wird knapp" : "Running low"} value={items.filter(item => item.quantity > 0 && item.quantity <= item.minQuantity).length.toString()} detail={language === "de" ? "Mindestbestand erreicht" : "At minimum stock"} tone="orange"/>
+              <StatCard icon={<ShoppingCart size={19}/>} label={language === "de" ? "Aufgebraucht" : "Out of stock"} value={items.filter(item => item.quantity <= 0).length.toString()} detail={language === "de" ? "Müssen nachgekauft werden" : "Need replenishing"} tone="red"/>
             </section>
             <div className="dashboard-grid">
               <section className="panel inventory-panel">
@@ -545,7 +546,7 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
               </section>
               <section className="panel alert-panel">
                 <div className="panel-heading"><div><h2>{tr("attention")}</h2><p>{language === "de" ? "Dein Bestand im Blick" : "Keep an eye on your stock"}</p></div><div className="alert-heading-icon"><CircleAlert size={18}/></div></div>
-                {lowItems.length ? <div className="alert-list">{lowItems.slice(0, 5).map(item => <div className="alert-item" key={item.id}><div className="alert-product-icon"><Package size={17}/></div><div className="alert-info"><strong>{item.name}</strong><small>{categoryLabel(item.categoryId)}</small></div><span className="alert-qty">{item.quantity} / {item.minQuantity}</span></div>)}</div> : <div className="empty-state"><div className="empty-check"><Check size={22}/></div><strong>{tr("noAlerts")}</strong></div>}
+                {lowItems.length ? <div className="alert-list">{[...lowItems].sort((a, b) => a.quantity - b.quantity).slice(0, 8).map(item => <div className="alert-item" key={item.id}><div className="alert-product-icon"><Package size={17}/></div><div className="alert-info"><strong>{item.name}</strong><small>{categoryLabel(item.categoryId)}{item.location ? ` · ${item.location}` : ""}</small></div><span className={`alert-qty ${item.quantity <= 0 ? "alert-qty-empty" : ""}`}>{item.quantity} / {item.minQuantity} {item.unit}</span></div>)}</div> : <div className="empty-state"><div className="empty-check"><Check size={22}/></div><strong>{tr("noAlerts")}</strong></div>}
               </section>
             </div>
             <div className="demo-note"><span className="demo-dot"/><strong>{tr("demo")}</strong><span>{tr("demoHint")}</span></div>
