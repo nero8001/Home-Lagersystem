@@ -360,3 +360,13 @@ tbody tr:last-child td{border-bottom:0}
   .full-panel { overflow: visible; }
   .table-footer { padding: 13px 15px; }
 }
+
+/* v0.7.1: expanded inventory search and filters */
+.inventory-toolbar { align-items: center; flex-wrap: wrap; }
+.inventory-filters { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1; min-width: 0; }
+.inventory-filters select { min-width: 145px; max-width: 220px; }
+@media (max-width: 760px) {
+  .inventory-toolbar { align-items: stretch; }
+  .inventory-filters { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .inventory-filters select { width: 100%; max-width: none; min-width: 0; }
+}

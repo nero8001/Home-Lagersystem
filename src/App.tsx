@@ -50,6 +50,8 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
   const [page, setPage] = useState<Page>("dashboard");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedLocation, setSelectedLocation] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<"item" | "product-search">("item");
@@ -264,12 +266,32 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
   const lowItems = items.filter(item => item.quantity <= item.minQuantity);
   const totalPieces = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  const visibleItems = useMemo(() => items.filter(item => {
-    const matchesSearch = `${item.name} ${item.description} ${item.barcode} ${item.location}`.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || item.categoryId === selectedCategory ||
-      categories.some(category => category.id === item.categoryId && category.parentId === selectedCategory);
-    return matchesSearch && matchesCategory;
-  }), [items, search, selectedCategory, categories]);
+  const availableLocations = useMemo(() => [...new Set(items.map(item => item.location.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, language)), [items, language]);
+
+  const visibleItems = useMemo(() => {
+    const descendantIds = new Set<string>([selectedCategory]);
+    if (selectedCategory !== "all") {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        categories.forEach(category => {
+          if (category.parentId && descendantIds.has(category.parentId) && !descendantIds.has(category.id)) {
+            descendantIds.add(category.id);
+            changed = true;
+          }
+        });
+      }
+    }
+    return items.filter(item => {
+      const query = search.trim().toLocaleLowerCase(language === "de" ? "de-DE" : "en-US");
+      const searchable = `${item.name} ${item.description} ${item.barcode} ${item.location}`.toLocaleLowerCase(language === "de" ? "de-DE" : "en-US");
+      const matchesSearch = !query || searchable.includes(query);
+      const matchesCategory = selectedCategory === "all" || (item.categoryId !== null && descendantIds.has(item.categoryId));
+      const matchesLocation = selectedLocation === "all" || item.location.trim() === selectedLocation;
+      const matchesStock = stockFilter === "all" || (stockFilter === "reorder" && item.quantity <= item.minQuantity) || (stockFilter === "empty" && item.quantity === 0) || (stockFilter === "low" && item.quantity > 0 && item.quantity <= item.minQuantity);
+      return matchesSearch && matchesCategory && matchesLocation && matchesStock;
+    });
+  }, [items, search, selectedCategory, selectedLocation, stockFilter, categories, language]);
 
   function categoryLabel(id: string | null) {
     return categories.find(category => category.id === id)?.name ?? "–";
@@ -532,7 +554,7 @@ function InventoryApp({ user, householdId, householdName, households, onSwitchHo
           {page === "inventory" && <>
             <div className="page-heading"><div><div className="eyebrow">{tr("inventory").toUpperCase()}</div><h1>{tr("inventory")}</h1><p>{language === "de" ? "Verwalte deine Artikel und behalte die Mengen im Blick." : "Manage your items and keep track of quantities."}</p></div><button className="primary-button" onClick={openNewItem}><Plus size={18}/>{tr("addItem")}</button></div>
             <section className="panel full-panel">
-              <div className="toolbar"><div className="search-box"><Search size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("search")}/>{search && <button onClick={() => setSearch("")}><X size={15}/></button>}</div><select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}><option value="all">{tr("allCategories")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select></div>
+              <div className="toolbar inventory-toolbar"><div className="search-box"><Search size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("search")}/>{search && <button onClick={() => setSearch("")} aria-label={language === "de" ? "Suche leeren" : "Clear search"}><X size={15}/></button>}</div><div className="inventory-filters"><select aria-label={tr("category")} value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}><option value="all">{tr("allCategories")}</option>{categories.map(c => <option key={c.id} value={c.id}>{c.parentId ? "　↳ " : ""}{c.name}</option>)}</select><select aria-label={tr("location")} value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}><option value="all">{language === "de" ? "Alle Lagerorte" : "All locations"}</option>{availableLocations.map(location => <option key={location} value={location}>{location}</option>)}</select><select aria-label={language === "de" ? "Bestandsfilter" : "Stock filter"} value={stockFilter} onChange={e => setStockFilter(e.target.value)}><option value="all">{language === "de" ? "Alle Bestände" : "All stock"}</option><option value="reorder">{language === "de" ? "Nachkaufen" : "Reorder"}</option><option value="low">{language === "de" ? "Wird knapp" : "Running low"}</option><option value="empty">{language === "de" ? "Aufgebraucht" : "Out of stock"}</option></select></div></div>
               <ItemTable items={visibleItems} categories={categories} onEdit={openEditItem} onDelete={deleteItem} onChange={changeQuantity} onSet={setQuantity} tr={tr}/>
               <div className="table-footer">{visibleItems.length} {language === "de" ? "Artikel angezeigt" : "items shown"}</div>
             </section>
